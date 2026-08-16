@@ -21,26 +21,59 @@ def _extract_text(file_stream):
 # ---------------------------------------------------------------------------
 # 1. History and Forecast -> 7 Day Forecast section
 # ---------------------------------------------------------------------------
+# Real "Flaming_Forecast" export column order (confirmed against a live
+# sample): Date Weekday | Total Occ. | Arr. Rooms | Comp. Rooms | House Use |
+# Deduct Indiv. | Deduct Group | Occ.% | Room Revenue | Average Rate |
+# Dep. Rooms | Day Use Rooms | No Show Rooms | OOO Rooms | Adl. & Chl.
+_FORECAST_RE = re.compile(
+    r'^(\d{2}\.\d{2}\.\d{2})\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+'
+    r'(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+'
+    r'([\d.]+)%\s+([\d,]+\.\d+)\s+([\d.]+)\s+'
+    r'(\d+)\s+.*$'
+)
+
+
+def _to_ddmmyyyy(short_date):
+    """'16.08.26' -> '16.08.2026'"""
+    dd, mm, yy = short_date.split('.')
+    return f'{dd}.{mm}.20{yy}'
+
+
 def parse_forecast(file_stream):
+    """
+    Parse the Flaming_Forecast PDF into the 7-day forecast structure:
+    {'dates': [...7], 'occupancy_pct': [...7], 'rooms_occupied': [...7],
+     'adr': [...7], 'arrivals': [...7], 'departures': [...7]}
+    Only the first 7 matching daily rows are used (Subtotal/Total lines
+    don't match the date-anchored pattern, so they're naturally skipped).
+    """
     lines = _extract_text(file_stream)
-    records = []
-    pattern = re.compile(
-        r'^(\d{2}\.\d{2}\.\d{2})\s+\w{3}\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+'
-        r'([\d.]+)%\s+([\d,]+\.\d{2})\s+([\d.]+)\s+(\d+)'
-    )
+    days = []
     for line in lines:
-        m = pattern.match(line)
-        if m:
-            date, tot_occ, arr, comp, house, occ_pct, rev, adr, dep = m.groups()
-            records.append({
-                'date': date,
-                'occupancy_pct': float(occ_pct) / 100,
-                'rooms_occupied': int(tot_occ) - int(house) - int(comp),
-                'adr': float(adr),
-                'arrivals': int(arr),
-                'departures': int(dep),
-            })
-    return records
+        m = _FORECAST_RE.match(line.strip())
+        if not m:
+            continue
+        (date, total_occ, arr_rooms, comp_rooms, house_use, deduct_indiv,
+         deduct_group, occ_pct, room_revenue, avg_rate, dep_rooms) = m.groups()
+        days.append({
+            'date': _to_ddmmyyyy(date),
+            'occupancy_pct': round(float(occ_pct) / 100, 4),
+            'rooms_occupied': int(total_occ),
+            'adr': float(avg_rate),
+            'arrivals': int(arr_rooms),
+            'departures': int(dep_rooms),
+        })
+        if len(days) == 7:
+            break
+
+    return {
+        'dates': [d['date'] for d in days],
+        'occupancy_pct': [d['occupancy_pct'] for d in days],
+        'rooms_occupied': [d['rooms_occupied'] for d in days],
+        'adr': [d['adr'] for d in days],
+        'arrivals': [d['arrivals'] for d in days],
+        'departures': [d['departures'] for d in days],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -56,6 +56,20 @@ def api_upload_arrivals():
     return _upload_vip_list('arrivals_pdf', parsers.parse_arrivals, 'vip_arrivals')
 
 
+@app.route('/api/upload/forecast', methods=['POST'])
+def api_upload_forecast():
+    f = request.files.get('forecast_pdf')
+    if not f or not f.filename:
+        return jsonify({'status': 'error', 'message': 'No file uploaded'}), 400
+    try:
+        forecast = parsers.parse_forecast(f.stream)
+        if not forecast['dates']:
+            return jsonify({'status': 'error', 'message': 'No forecast rows recognised in this PDF'}), 400
+        return jsonify({'status': 'ok', 'target': 'forecast', 'forecast': forecast})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+
 def _upload_vip_list(file_key, parse_fn, target_key, extra=None):
     f = request.files.get(file_key)
     if not f or not f.filename:

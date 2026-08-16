@@ -95,6 +95,12 @@
     <tr class="green-hdr" id="forecastDateRow"></tr>
     <tbody id="forecastMetrics"></tbody>
   </table>
+  <div class="upload-bar">
+    <label>📄 Upload Forecast report (PDF):</label>
+    <input type="file" id="forecastFile" accept="application/pdf">
+    <button class="btn small" id="forecastUploadBtn">Process</button>
+    <span class="note" id="forecastNote"></span>
+  </div>
 
   <table class="grid" style="margin-top:-1px;">
     <tr>
@@ -608,7 +614,7 @@ async function uploadFile(inputId, url, fieldName, noteId, mergeFn) {
     const j = await res.json();
     if (j.status !== 'ok') { note.textContent = 'Error: ' + j.message; toast(j.message, true); return; }
     mergeFn(j);
-    note.textContent = `Added ${ (j.records||[]).length } record(s).`;
+    note.textContent = j.records ? `Added ${j.records.length} record(s).` : 'Updated.';
     toast('Report processed — review before saving.');
   } catch(e) {
     note.textContent = 'Error processing file.';
@@ -619,6 +625,10 @@ async function uploadFile(inputId, url, fieldName, noteId, mergeFn) {
 document.getElementById('arrivalsUploadBtn').addEventListener('click', ()=>
   uploadFile('arrivalsFile','/api/upload/arrivals','arrivals_pdf','arrivalsNote', j=>{
     STATE.vip_arrivals = j.records; renderArrivals();
+  }));
+document.getElementById('forecastUploadBtn').addEventListener('click', ()=>
+  uploadFile('forecastFile','/api/upload/forecast','forecast_pdf','forecastNote', j=>{
+    STATE.forecast = j.forecast; renderForecast();
   }));
 document.getElementById('inhouseUploadBtn').addEventListener('click', ()=>
   uploadFile('inhouseFile','/api/upload/inhouse','inhouse_pdf','inhouseNote', j=>{
