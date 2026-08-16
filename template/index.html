@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<title>Flaming News Generator — Fairmont Baku</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:0; }
+  .wrap { max-width:640px; margin:40px auto; background:#fff; border:1px solid #ddd; border-radius:8px; padding:32px; }
+  h1 { font-size:20px; color:#3c3c3c; margin-bottom:4px; }
+  p.sub { color:#777; margin-top:0; margin-bottom:24px; font-size:14px; }
+  label { display:block; font-weight:bold; margin-top:18px; margin-bottom:6px; font-size:14px; color:#333; }
+  input[type=file], input[type=text] { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; }
+  .hint { font-size:12px; color:#999; margin-top:3px; }
+  button { margin-top:28px; width:100%; padding:12px; background:#3c3c3c; color:#fff; border:none; border-radius:4px; font-size:15px; cursor:pointer; }
+  button:hover { background:#555; }
+  .flash { background:#ffe0e0; color:#900; padding:10px; border-radius:4px; margin-bottom:16px; font-size:14px; }
+  .req { color:#c00; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔥 Flaming News Generator</h1>
+  <p class="sub">Fairmont Baku, Flame Towers — PMS reportlarından avtomatik hazırlanır</p>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form action="/generate" method="post" enctype="multipart/form-data">
+    <label>Tarix</label>
+    <input type="text" name="report_date" value="{{ today }}">
+
+    <label>7 Day Forecast (History and Forecast PDF)</label>
+    <input type="file" name="forecast_pdf" accept="application/pdf">
+
+    <label>VIP Arrivals <span class="req">*</span> (Arrivals: Detailed PDF)</label>
+    <input type="file" name="arrivals_pdf" accept="application/pdf">
+
+    <label>VIP In-House <span class="req">*</span> (Guests INH - By Room PDF)</label>
+    <input type="file" name="inhouse_pdf" accept="application/pdf">
+
+    <label>VIP Departures <span class="req">*</span> (Departures PDF)</label>
+    <input type="file" name="departures_pdf" accept="application/pdf">
+
+    <label>Qonaq şəkilləri (ZIP, könüllü)</label>
+    <input type="file" name="photos_zip" accept=".zip">
+    <div class="hint">ZIP daxilində şəkilləri otaq nömrəsi ilə adlandırın (məs. 1111.jpg) ki, avtomatik uyğunlaşsın.</div>
+
+    <button type="submit">Flaming News-i Yarat</button>
+  </form>
+</div>
+</body>
+</html>
