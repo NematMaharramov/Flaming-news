@@ -2,55 +2,574 @@
 <html lang="az">
 <head>
 <meta charset="UTF-8">
-<title>Flaming News Generator — Fairmont Baku</title>
+<title>Flaming News — Fairmont Baku</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:0; }
-  .wrap { max-width:640px; margin:40px auto; background:#fff; border:1px solid #ddd; border-radius:8px; padding:32px; }
-  h1 { font-size:20px; color:#3c3c3c; margin-bottom:4px; }
-  p.sub { color:#777; margin-top:0; margin-bottom:24px; font-size:14px; }
-  label { display:block; font-weight:bold; margin-top:18px; margin-bottom:6px; font-size:14px; color:#333; }
-  input[type=file], input[type=text] { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; }
-  .hint { font-size:12px; color:#999; margin-top:3px; }
-  button { margin-top:28px; width:100%; padding:12px; background:#3c3c3c; color:#fff; border:none; border-radius:4px; font-size:15px; cursor:pointer; }
-  button:hover { background:#555; }
-  .flash { background:#ffe0e0; color:#900; padding:10px; border-radius:4px; margin-bottom:16px; font-size:14px; }
-  .req { color:#c00; }
+  :root{
+    --green:#92D050; --grey:#E7E6E6; --red:#FF0000; --dark:#3c3c3c;
+    --t3-bg:#000000; --t3-fg:#ffffff;
+    --t4-bg:#FF0000; --t4-fg:#000000;
+    --t5-bg:#ffffff; --t5-fg:#000000;
+    --t6-bg:#000000; --t6-fg:#ffffff;
+    --sa-bg:#70AD47; --sa-fg:#000000;
+    --v1-bg:#FF0000; --v1-fg:#000000;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: Calibri, Arial, sans-serif; background:#eef0f2; margin:0; padding:0; color:#222; }
+  .topbar { position:sticky; top:0; z-index:50; background:#fff; border-bottom:1px solid #ccc; padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .topbar h1 { font-size:16px; margin:0 12px 0 0; color:var(--dark); }
+  .topbar .spacer { flex:1; }
+  .status { font-size:12px; color:#666; }
+  .banner { background:#fff8e1; border:1px solid #ffe08a; color:#8a6500; font-size:13px; padding:8px 16px; }
+  button, input[type=file] { font-family:inherit; }
+  .btn { background:var(--dark); color:#fff; border:none; border-radius:4px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .btn:hover { background:#555; }
+  .btn.secondary { background:#e0e0e0; color:#222; }
+  .btn.secondary:hover { background:#d0d0d0; }
+  .btn.small { padding:4px 8px; font-size:12px; }
+  .btn.danger { background:#c0392b; }
+  .tabs { display:flex; gap:0; margin:16px 16px 0; }
+  .tab { padding:10px 22px; background:#dfe3e6; border:1px solid #bbb; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:bold; color:#555; font-size:14px; }
+  .tab.active { background:#fff; color:#000; }
+  .sheet { max-width:1150px; margin:0 auto 60px; background:#fff; border:1px solid #bbb; padding:0; }
+  table.grid { border-collapse:collapse; width:100%; table-layout:fixed; }
+  table.grid td, table.grid th { border:1px solid #999; padding:4px 6px; font-size:13px; vertical-align:middle; }
+  .title-row td { background:var(--grey); color:var(--red); font-weight:bold; font-size:20px; text-align:center; padding:10px; }
+  .section-row td { background:var(--green); font-weight:bold; font-size:15px; text-align:center; padding:6px; }
+  .thdr td, .thdr th { background:transparent; font-weight:bold; text-align:center; font-size:13px; }
+  .green-hdr td, .green-hdr th { background:var(--green); font-weight:bold; text-align:center; font-size:13px; }
+  .val-cell { background:var(--grey); text-align:center; }
+  input.cell, select.cell, textarea.cell { width:100%; border:none; background:transparent; text-align:center; font-family:inherit; font-size:13px; padding:2px; }
+  textarea.cell { resize:vertical; min-height:32px; }
+  input.cell:focus, select.cell:focus, textarea.cell:focus { outline:2px solid #4472C4; background:#fff; }
+  .left-align input.cell, .left-align textarea.cell { text-align:left; }
+  .code-select { font-weight:bold; text-align:center; border-radius:2px; }
+  .code-T3 { background:var(--t3-bg); color:var(--t3-fg); }
+  .code-T4 { background:var(--t4-bg); color:var(--t4-fg); }
+  .code-T5 { background:var(--t5-bg); color:var(--t5-fg); }
+  .code-T6 { background:var(--t6-bg); color:var(--t6-fg); }
+  .code-SA { background:var(--sa-bg); color:var(--sa-fg); }
+  .code-V1 { background:var(--v1-bg); color:var(--v1-fg); }
+  .row-actions { text-align:center; width:34px; }
+  .add-row-bar { padding:8px; text-align:center; background:#fafafa; }
+  .upload-bar { display:flex; align-items:center; gap:8px; padding:8px; background:#f4f6f7; flex-wrap:wrap; font-size:12px; }
+  .upload-bar label { font-size:12px; color:#555; }
+  .upload-bar input[type=file] { font-size:12px; }
+  .goals-block td { background:var(--grey); text-align:center; font-size:13px; }
+  .goals-block .label { background:var(--grey); font-weight:normal; }
+  .note { font-size:11px; color:#888; padding:6px 10px; }
+  .toast { position:fixed; bottom:20px; right:20px; background:#2e7d32; color:#fff; padding:10px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.2); display:none; z-index:100; }
+  .toast.error { background:#c0392b; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🔥 Flaming News Generator</h1>
-  <p class="sub">Fairmont Baku, Flame Towers — PMS reportlarından avtomatik hazırlanır</p>
 
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
-    {% endif %}
-  {% endwith %}
-
-  <form action="/generate" method="post" enctype="multipart/form-data">
-    <label>Tarix</label>
-    <input type="text" name="report_date" value="{{ today }}">
-
-    <label>7 Day Forecast (History and Forecast PDF)</label>
-    <input type="file" name="forecast_pdf" accept="application/pdf">
-
-    <label>VIP Arrivals <span class="req">*</span> (Arrivals: Detailed PDF)</label>
-    <input type="file" name="arrivals_pdf" accept="application/pdf">
-
-    <label>VIP In-House <span class="req">*</span> (Guests INH - By Room PDF)</label>
-    <input type="file" name="inhouse_pdf" accept="application/pdf">
-
-    <label>VIP Departures <span class="req">*</span> (Departures PDF)</label>
-    <input type="file" name="departures_pdf" accept="application/pdf">
-
-    <label>Qonaq şəkilləri (ZIP, könüllü)</label>
-    <input type="file" name="photos_zip" accept=".zip">
-    <div class="hint">ZIP daxilində şəkilləri otaq nömrəsi ilə adlandırın (məs. 1111.jpg) ki, avtomatik uyğunlaşsın.</div>
-
-    <button type="submit">Flaming News-i Yarat</button>
-  </form>
+<div class="topbar">
+  <h1>🔥 Flaming News — Fairmont Baku</h1>
+  <label style="font-size:12px;color:#555;">Date:
+    <input type="date" id="dateInput" style="padding:4px;">
+  </label>
+  <span class="status" id="statusLine"></span>
+  <div class="spacer"></div>
+  <button class="btn secondary" id="saveBtn">💾 Save</button>
+  <button class="btn" id="exportBtn">⬇️ Download Excel</button>
 </div>
+
+{% if carried %}
+<div class="banner">Loaded {{ source_date }}'s data as a starting point — only today's changes need updating. VIP guest lists, site inspections and F&amp;B performance were cleared for fresh upload.</div>
+{% endif %}
+
+<div class="tabs">
+  <div class="tab active" data-tab="sheet1">Sheet 1 — Accomodation</div>
+  <div class="tab" data-tab="sheet2">Sheet 2 — F&amp;B Section</div>
+</div>
+
+<!-- ================= SHEET 1 ================= -->
+<div class="sheet" id="sheet1">
+  <table class="grid">
+    <tr class="title-row"><td colspan="9" id="titleCell">FLAMING NEWS FOR ...</td></tr>
+    <tr class="title-row"><td colspan="9">Quote of the Day : “<input class="cell" id="quoteInput" style="color:var(--red);font-weight:bold;font-size:16px;text-align:center;" placeholder="Quote of the day"></input>”</td></tr>
+
+    <tr class="section-row"><td colspan="9">7 Day Forecast</td></tr>
+    <tr class="green-hdr" id="forecastDateRow"></tr>
+    <tbody id="forecastMetrics"></tbody>
+  </table>
+
+  <table class="grid" style="margin-top:-1px;">
+    <tr>
+      <td class="left-align" style="background:var(--grey);font-weight:bold;width:11%;">AM MOD:<br><input class="cell" data-path="am_mod"></td>
+      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">House Status</td>
+      <td rowspan="2" style="background:var(--green);font-weight:bold;text-align:center;">Weather Today<br><textarea class="cell" data-path="weather" style="background:var(--grey);"></textarea></td>
+      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">ALL Enrollments Goal<br><input class="cell" data-path="enrollments_goal" style="background:var(--grey);font-size:18px;font-weight:bold;"></td>
+      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">ALL Enrollments YTD<br><input class="cell" data-path="enrollments_ytd" style="background:var(--grey);font-size:18px;font-weight:bold;"></td>
+    </tr>
+    <tr>
+      <td class="left-align" style="background:var(--grey);font-weight:bold;">PM MOD:<br><input class="cell" data-path="pm_mod"></td>
+      <td>OOS/ OOO</td><td><input class="cell" data-path="house_status.oos_ooo"></td>
+      <td colspan="2"></td><td colspan="2"></td>
+    </tr>
+    <tr>
+      <td class="left-align" style="background:var(--grey);font-weight:bold;">NM:<br><input class="cell" data-path="nm"></td>
+      <td>No Show</td><td><input class="cell" data-path="house_status.no_show"></td>
+      <td></td><td colspan="2"></td><td colspan="2"></td>
+    </tr>
+    <tr>
+      <td class="left-align" style="background:var(--grey);font-weight:bold;">Weekend EOD:<br><input class="cell" data-path="weekend_eod"></td>
+      <td>Comp./house use</td><td><input class="cell" data-path="house_status.comp_house_use"></td>
+      <td></td><td colspan="2"></td><td colspan="2"></td>
+    </tr>
+  </table>
+
+  <table class="grid" style="margin-top:-1px;">
+    <tr class="section-row"><td colspan="9" style="background:#70AD47;">Fairmont Baku 2026 Goals</td></tr>
+    <tr class="goals-block">
+      <td class="label">CES Goal</td><td><input class="cell" data-path="fairmont_goals.ces_goal"></td>
+      <td></td>
+      <td class="label">RPS Goal</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_goal"></td>
+      <td class="label">RPS MTD</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_mtd"></td>
+    </tr>
+    <tr class="goals-block">
+      <td class="label">CES Actual</td><td><input class="cell" data-path="fairmont_goals.ces_actual"></td>
+      <td></td>
+      <td class="label">RPS YTD</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_ytd"></td>
+      <td colspan="3"></td>
+    </tr>
+  </table>
+
+  <table class="grid" style="margin-top:-1px;">
+    <tr class="section-row"><td colspan="9">Site Inspections</td></tr>
+    <tr class="thdr">
+      <td style="width:10%;">Time</td><td style="width:16%;">Guest</td>
+      <td colspan="5">Position / Company</td><td colspan="2">Sales Contact</td>
+    </tr>
+    <tbody id="siteInspectionsBody"></tbody>
+  </table>
+  <div class="add-row-bar"><button class="btn small secondary" id="addInspectionBtn">+ Add site inspection</button></div>
+
+  <table class="grid" style="margin-top:8px;">
+    <tr class="section-row"><td colspan="9">VIP Arrivals</td></tr>
+    <tr class="thdr">
+      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
+      <td style="width:8%;">ETA</td><td colspan="2" style="width:22%;">Remarks</td><td colspan="3">Company</td>
+    </tr>
+    <tbody id="vipArrivalsBody"></tbody>
+  </table>
+  <div class="upload-bar">
+    <label>📄 Upload Arrivals report (PDF):</label>
+    <input type="file" id="arrivalsFile" accept="application/pdf">
+    <button class="btn small" id="arrivalsUploadBtn">Process</button>
+    <span class="note" id="arrivalsNote"></span>
+  </div>
+  <div class="add-row-bar"><button class="btn small secondary" id="addArrivalBtn">+ Add guest</button></div>
+
+  <table class="grid" style="margin-top:8px;">
+    <tr class="section-row"><td colspan="9">VIP In-House Guests</td></tr>
+    <tr class="thdr">
+      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
+      <td style="width:10%;">Departure day</td><td colspan="2" style="width:20%;">Remarks</td><td colspan="3">Company</td>
+    </tr>
+    <tbody id="vipInhouseBody"></tbody>
+  </table>
+  <div class="upload-bar">
+    <label>📄 Upload GIH (Guests In-House) report (PDF):</label>
+    <input type="file" id="inhouseFile" accept="application/pdf">
+    <button class="btn small" id="inhouseUploadBtn">Process</button>
+    <span class="note" id="inhouseNote"></span>
+  </div>
+  <div class="add-row-bar"><button class="btn small secondary" id="addInhouseBtn">+ Add guest</button></div>
+
+  <table class="grid" style="margin-top:8px;">
+    <tr class="section-row"><td colspan="9">VIP Departures</td></tr>
+    <tr class="thdr">
+      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
+      <td style="width:10%;">Departure day</td><td colspan="2" style="width:16%;">Departure Time</td><td colspan="3">Company</td>
+    </tr>
+    <tbody id="vipDeparturesBody"></tbody>
+  </table>
+  <div class="upload-bar">
+    <label>📄 Upload Departure report (PDF):</label>
+    <input type="file" id="departuresFile" accept="application/pdf">
+    <button class="btn small" id="departuresUploadBtn">Process</button>
+    <span class="note" id="departuresNote"></span>
+  </div>
+  <div class="add-row-bar"><button class="btn small secondary" id="addDepartureBtn">+ Add guest</button></div>
+  <div class="note">VIP rules applied automatically: DV guests are excluded, Booking.com V1 guests are excluded, and codes are colour-coded (T3 black · T4 red · T5 white · T6 black · SA green · V1 red) to match the Excel.</div>
+</div>
+
+<!-- ================= SHEET 2 ================= -->
+<div class="sheet" id="sheet2" style="display:none;">
+  <table class="grid">
+    <tr class="title-row"><td colspan="9" id="titleCell2">FLAMING NEWS FOR ...</td></tr>
+    <tr class="title-row"><td colspan="9" id="quoteCell2">Quote of the Day</td></tr>
+    <tr class="title-row"><td colspan="9" style="font-size:16px;">FOOD &amp; BEVERAGE</td></tr>
+  </table>
+
+  <table class="grid" style="margin-top:-1px;">
+    <tr class="section-row"><td colspan="9">Events</td></tr>
+    <tr class="green-hdr">
+      <td style="width:10%;">Time</td><td colspan="2" style="width:18%;">Meeting Room</td>
+      <td colspan="3" style="width:30%;">Company</td><td colspan="3">Sales contact</td>
+    </tr>
+    <tbody id="eventsBody"></tbody>
+  </table>
+  <div class="add-row-bar"><button class="btn small secondary" id="addEventBtn">+ Add event</button></div>
+
+  <table class="grid" style="margin-top:8px;">
+    <tr>
+      <td colspan="3" class="section-row" style="padding:0;"><div style="padding:6px;">Birthday</div></td>
+      <td colspan="6" class="section-row" style="padding:0;"><div style="padding:6px;">Anniversary</div></td>
+    </tr>
+    <tr>
+      <td colspan="3" class="val-cell" style="padding:0;"><textarea class="cell left-align" data-path="birthday" style="min-height:80px;"></textarea></td>
+      <td colspan="6" class="val-cell" style="padding:0;"><textarea class="cell left-align" data-path="anniversary" style="min-height:80px;"></textarea></td>
+    </tr>
+  </table>
+
+  <table class="grid" style="margin-top:8px;">
+    <tr class="section-row"><td colspan="9">Food &amp; Beverage Performance</td></tr>
+    <tr class="thdr">
+      <td style="width:16%;">Outlet</td><td style="width:12%;">Revenue</td><td style="width:8%;">GİH</td>
+      <td style="width:12%;">External guests</td><td colspan="2" style="width:16%;">Special promotions</td>
+      <td colspan="3">External guests</td>
+    </tr>
+    <tbody id="fbPerfBody"></tbody>
+  </table>
+  <div class="upload-bar">
+    <label>📄 Upload Outlet revenues report (.xlsx):</label>
+    <input type="file" id="fbFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <button class="btn small" id="fbUploadBtn">Process</button>
+    <span class="note" id="fbNote"></span>
+  </div>
+  <div class="add-row-bar"><button class="btn small secondary" id="addFbBtn">+ Add outlet</button></div>
+  <div class="note">F&amp;B figures are extracted automatically where the report layout allows; anything not confidently read is left blank for quick manual entry rather than guessed.</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const VIP_CODES = ['T3','T4','T5','T6','SA','V1'];
+
+let STATE = {{ data_json|safe }};
+const ISO_DATE_INITIAL = "{{ iso_date }}";
+
+function getPath(obj, path) {
+  return path.split('.').reduce((o,k)=> (o==null? undefined : o[k]), obj);
+}
+function setPath(obj, path, value) {
+  const parts = path.split('.');
+  let o = obj;
+  for (let i=0;i<parts.length-1;i++){
+    if (o[parts[i]] === undefined) o[parts[i]] = {};
+    o = o[parts[i]];
+  }
+  o[parts[parts.length-1]] = value;
+}
+
+function fmtTitleDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function refreshTitles() {
+  const t = 'FLAMING NEWS FOR ' + fmtTitleDate(document.getElementById('dateInput').value);
+  document.getElementById('titleCell').textContent = t;
+  document.getElementById('titleCell2').textContent = t;
+  document.getElementById('quoteCell2').textContent = 'Quote of the Day : “' + (STATE.quote || '') + '”';
+}
+
+// ---------- generic cell factory ----------
+function cellInput(path, value, opts={}) {
+  const tag = opts.textarea ? 'textarea' : 'input';
+  const el = document.createElement(tag);
+  el.className = 'cell' + (opts.cls ? ' '+opts.cls : '');
+  if (!opts.textarea) el.type = 'text';
+  el.value = value == null ? '' : value;
+  el.dataset.path = path;
+  el.addEventListener('input', () => setPath(STATE, path, el.value));
+  return el;
+}
+
+function codeSelect(path, value) {
+  const sel = document.createElement('select');
+  sel.className = 'cell code-select code-' + (value||'');
+  sel.dataset.path = path;
+  const blank = document.createElement('option'); blank.value=''; blank.text='—'; sel.appendChild(blank);
+  VIP_CODES.forEach(c=>{
+    const o = document.createElement('option'); o.value=c; o.text=c;
+    if (c === value) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => {
+    setPath(STATE, path, sel.value);
+    sel.className = 'cell code-select code-' + sel.value;
+  });
+  return sel;
+}
+
+function td(el, opts={}) {
+  const t = document.createElement('td');
+  if (opts.colspan) t.colSpan = opts.colspan;
+  if (opts.cls) t.className = opts.cls;
+  t.appendChild(el);
+  return t;
+}
+
+function removeBtn(onClick) {
+  const b = document.createElement('button');
+  b.className = 'btn small danger';
+  b.textContent = '✕';
+  b.title = 'Remove row';
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+// ---------- Forecast ----------
+const FORECAST_METRICS = [
+  ['occupancy_pct', 'Occupancy %'],
+  ['rooms_occupied', 'Rooms Occupied (excl house use & comp)'],
+  ['adr', 'ADR'],
+  ['arrivals', 'Arrivals'],
+  ['departures', 'Departures'],
+];
+
+function renderForecast() {
+  const fc = STATE.forecast;
+  const dateRow = document.getElementById('forecastDateRow');
+  dateRow.innerHTML = '';
+  const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight='bold'; dateRow.appendChild(lbl);
+  for (let i=0;i<7;i++) {
+    dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i])));
+  }
+  const body = document.getElementById('forecastMetrics');
+  body.innerHTML = '';
+  FORECAST_METRICS.forEach(([key,label])=>{
+    const tr = document.createElement('tr');
+    const l = document.createElement('td'); l.textContent = label; l.style.background='var(--green)'; l.style.fontWeight='bold';
+    tr.appendChild(l);
+    for (let i=0;i<7;i++){
+      tr.appendChild(td(cellInput(`forecast.${key}.${i}`, fc[key][i]), {cls:'val-cell'}));
+    }
+    body.appendChild(tr);
+  });
+}
+
+// ---------- Site Inspections ----------
+function renderInspections() {
+  const body = document.getElementById('siteInspectionsBody');
+  body.innerHTML = '';
+  (STATE.site_inspections||[]).forEach((row,i)=>{
+    const tr = document.createElement('tr');
+    tr.appendChild(td(cellInput(`site_inspections.${i}.time`, row.time)));
+    tr.appendChild(td(cellInput(`site_inspections.${i}.guest`, row.guest)));
+    tr.appendChild(td(cellInput(`site_inspections.${i}.position_company`, row.position_company), {colspan:4}));
+    tr.appendChild(td(cellInput(`site_inspections.${i}.sales_contact`, row.sales_contact), {colspan:2}));
+    tr.appendChild(td(removeBtn(()=>{ STATE.site_inspections.splice(i,1); renderInspections(); }), {cls:'row-actions'}));
+    body.appendChild(tr);
+  });
+}
+document.getElementById('addInspectionBtn').addEventListener('click', ()=>{
+  STATE.site_inspections = STATE.site_inspections || [];
+  STATE.site_inspections.push({time:'',guest:'',position_company:'',sales_contact:''});
+  renderInspections();
+});
+
+// ---------- VIP tables ----------
+function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey) {
+  const body = document.getElementById(bodyId);
+  body.innerHTML = '';
+  (STATE[listKey]||[]).forEach((row,i)=>{
+    const tr = document.createElement('tr');
+    tr.appendChild(td(cellInput(`${listKey}.${i}.guest`, row.guest)));
+    tr.appendChild(td(codeSelect(`${listKey}.${i}.code`, row.code)));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.room`, row.room)));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.${dateFieldKey}`, row[dateFieldKey])));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey]), {colspan:2}));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.company`, row.company), {colspan:2}));
+    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey); }), {cls:'row-actions'}));
+    body.appendChild(tr);
+  });
+}
+function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks'); }
+function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks'); }
+function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time'); }
+
+document.getElementById('addArrivalBtn').addEventListener('click', ()=>{
+  STATE.vip_arrivals = STATE.vip_arrivals||[]; STATE.vip_arrivals.push({guest:'',code:'',room:'',eta:'',remarks:'',company:''}); renderArrivals();
+});
+document.getElementById('addInhouseBtn').addEventListener('click', ()=>{
+  STATE.vip_inhouse = STATE.vip_inhouse||[]; STATE.vip_inhouse.push({guest:'',code:'',room:'',departure_day:'',remarks:'',company:''}); renderInhouse();
+});
+document.getElementById('addDepartureBtn').addEventListener('click', ()=>{
+  STATE.vip_departures = STATE.vip_departures||[]; STATE.vip_departures.push({guest:'',code:'',room:'',departure_day:'',departure_time:'',company:''}); renderDepartures();
+});
+
+// ---------- Events ----------
+function renderEvents() {
+  const body = document.getElementById('eventsBody');
+  body.innerHTML = '';
+  (STATE.events||[]).forEach((row,i)=>{
+    const tr = document.createElement('tr');
+    tr.appendChild(td(cellInput(`events.${i}.time`, row.time)));
+    tr.appendChild(td(cellInput(`events.${i}.meeting_room`, row.meeting_room), {colspan:2}));
+    tr.appendChild(td(cellInput(`events.${i}.company`, row.company), {colspan:3}));
+    tr.appendChild(td(cellInput(`events.${i}.sales_contact`, row.sales_contact), {colspan:2}));
+    tr.appendChild(td(removeBtn(()=>{ STATE.events.splice(i,1); renderEvents(); }), {cls:'row-actions'}));
+    body.appendChild(tr);
+  });
+}
+document.getElementById('addEventBtn').addEventListener('click', ()=>{
+  STATE.events = STATE.events||[]; STATE.events.push({time:'',meeting_room:'',company:'',sales_contact:''}); renderEvents();
+});
+
+// ---------- F&B performance ----------
+function renderFbPerf() {
+  const body = document.getElementById('fbPerfBody');
+  body.innerHTML = '';
+  (STATE.fb_performance||[]).forEach((row,i)=>{
+    const tr = document.createElement('tr');
+    tr.appendChild(td(cellInput(`fb_performance.${i}.outlet`, row.outlet), {cls:'left-align'}));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.revenue`, row.revenue)));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.gih`, row.gih)));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.external_guests`, row.external_guests)));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.special_promotions`, row.special_promotions), {colspan:2}));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.external_guests_2`, row.external_guests_2), {colspan:2}));
+    tr.appendChild(td(removeBtn(()=>{ STATE.fb_performance.splice(i,1); renderFbPerf(); }), {cls:'row-actions'}));
+    body.appendChild(tr);
+  });
+}
+document.getElementById('addFbBtn').addEventListener('click', ()=>{
+  STATE.fb_performance = STATE.fb_performance||[];
+  STATE.fb_performance.push({outlet:'',revenue:'',gih:'',external_guests:'',special_promotions:'',external_guests_2:''});
+  renderFbPerf();
+});
+
+// ---------- static-field bindings (data-path inputs already in markup) ----------
+function bindStaticFields() {
+  document.querySelectorAll('[data-path]').forEach(el=>{
+    const path = el.dataset.path;
+    const v = getPath(STATE, path);
+    el.value = v == null ? '' : v;
+    el.addEventListener('input', ()=> {
+      setPath(STATE, path, el.value);
+    });
+  });
+  const q = document.getElementById('quoteInput');
+  q.value = STATE.quote || '';
+  q.addEventListener('input', ()=>{ STATE.quote = q.value; refreshTitles(); });
+}
+
+function renderAll() {
+  refreshTitles();
+  renderForecast();
+  renderInspections();
+  renderArrivals();
+  renderInhouse();
+  renderDepartures();
+  renderEvents();
+  renderFbPerf();
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('sheet1').style.display = t.dataset.tab==='sheet1' ? '' : 'none';
+    document.getElementById('sheet2').style.display = t.dataset.tab==='sheet2' ? '' : 'none';
+  });
+});
+
+// ---------- toast ----------
+function toast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  setTimeout(()=>{ t.style.display='none'; }, 3500);
+}
+
+// ---------- save / export ----------
+async function saveState(silent=false) {
+  STATE.iso_date = document.getElementById('dateInput').value;
+  const res = await fetch('/api/save', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(STATE)
+  });
+  const j = await res.json();
+  if (j.status === 'ok') {
+    document.getElementById('statusLine').textContent = 'Saved ' + j.saved_at;
+    if (!silent) toast('Saved.');
+  } else if (!silent) {
+    toast('Save failed', true);
+  }
+}
+document.getElementById('saveBtn').addEventListener('click', ()=>saveState(false));
+
+document.getElementById('exportBtn').addEventListener('click', async ()=>{
+  await saveState(true);
+  const isoDate = document.getElementById('dateInput').value;
+  window.location = '/api/export?date=' + encodeURIComponent(isoDate);
+});
+
+document.getElementById('dateInput').addEventListener('change', ()=>{
+  window.location = '/?date=' + encodeURIComponent(document.getElementById('dateInput').value);
+});
+
+// ---------- report uploads ----------
+async function uploadFile(inputId, url, fieldName, noteId, mergeFn) {
+  const input = document.getElementById(inputId);
+  const file = input.files[0];
+  const note = document.getElementById(noteId);
+  if (!file) { note.textContent = 'Choose a PDF first.'; return; }
+  note.textContent = 'Processing…';
+  const fd = new FormData();
+  fd.append(fieldName, file);
+  try {
+    const res = await fetch(url, {method:'POST', body: fd});
+    const j = await res.json();
+    if (j.status !== 'ok') { note.textContent = 'Error: ' + j.message; toast(j.message, true); return; }
+    mergeFn(j);
+    note.textContent = `Added ${ (j.records||[]).length } record(s).`;
+    toast('Report processed — review before saving.');
+  } catch(e) {
+    note.textContent = 'Error processing file.';
+    toast('Upload failed', true);
+  }
+}
+
+document.getElementById('arrivalsUploadBtn').addEventListener('click', ()=>
+  uploadFile('arrivalsFile','/api/upload/arrivals','arrivals_pdf','arrivalsNote', j=>{
+    STATE.vip_arrivals = j.records; renderArrivals();
+  }));
+document.getElementById('inhouseUploadBtn').addEventListener('click', ()=>
+  uploadFile('inhouseFile','/api/upload/inhouse','inhouse_pdf','inhouseNote', j=>{
+    STATE.vip_inhouse = j.records; renderInhouse();
+  }));
+document.getElementById('departuresUploadBtn').addEventListener('click', ()=>
+  uploadFile('departuresFile','/api/upload/departures','departures_pdf','departuresNote', j=>{
+    STATE.vip_departures = j.records; renderDepartures();
+  }));
+document.getElementById('fbUploadBtn').addEventListener('click', ()=>
+  uploadFile('fbFile','/api/upload/fb','fb_report','fbNote', j=>{
+    STATE.fb_performance = STATE.fb_performance || [];
+    j.records.forEach(rec=>{
+      const existing = STATE.fb_performance.find(r=>r.outlet===rec.outlet);
+      if (existing) {
+        if (rec.revenue!=null) existing.revenue = rec.revenue;
+        if (rec.gih!=null) existing.gih = rec.gih;
+        if (rec.external_guests!=null) existing.external_guests = rec.external_guests;
+      } else {
+        STATE.fb_performance.push({outlet:rec.outlet, revenue:rec.revenue, gih:rec.gih, external_guests:rec.external_guests, special_promotions:'', external_guests_2:''});
+      }
+    });
+    renderFbPerf();
+  }));
+
+// ---------- init ----------
+document.getElementById('dateInput').value = ISO_DATE_INITIAL;
+bindStaticFields();
+renderAll();
+</script>
 </body>
 </html>

@@ -1,265 +1,392 @@
 """
 Flaming News - Excel Writer
-Builds the styled, print-ready Flaming News workbook from parsed report data.
+Rebuilds the workbook to match the ORIGINAL template's structure, merges,
+colours and fonts exactly (extracted directly from the source .xlsx), filled
+in with the day's data. No VIP Code Legend section (removed per requirement).
 """
 import io
-import zipfile
-import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as XLImage
 
-RED_FLAG = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
-HEADER_FILL = PatternFill(start_color='FF3C3C3C', end_color='FF3C3C3C', fill_type='solid')
-TITLE_FONT = Font(name='Calibri', size=16, bold=True)
-HEADER_FONT = Font(name='Calibri', size=12, bold=True, color='FFFFFFFF')
-SECTION_FONT = Font(name='Calibri', size=13, bold=True)
-DATA_FONT = Font(name='Calibri', size=11)
+import rules
+
+# ---------------------------------------------------------------------------
+# Colours / styles lifted directly from the source template
+# ---------------------------------------------------------------------------
+GREEN = 'FF92D050'      # section / column header green
+GREY = 'FFE7E6E6'       # value-cell background (theme "Background 2")
+RED_TEXT = 'FFFF0000'   # title / quote text colour
+WHITE = 'FFFFFFFF'
+BLACK = 'FF000000'
+
+FONT_NAME = 'Calibri'
+
 THIN = Side(style='thin')
-BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+MEDIUM = Side(style='medium')
+
+TITLE_FONT = Font(name=FONT_NAME, size=18, bold=True, color=RED_TEXT)
+SECTION_FONT = Font(name=FONT_NAME, size=16, bold=True)
+SECTION_FONT_PLAIN = Font(name=FONT_NAME, size=16, bold=False)
+LABEL_FONT = Font(name=FONT_NAME, size=16, bold=True)
+VALUE_FONT = Font(name=FONT_NAME, size=16, bold=False)
+TABLE_HEADER_FONT = Font(name=FONT_NAME, size=16, bold=True)
+DATA_FONT = Font(name=FONT_NAME, size=12, bold=False)
+
 CENTER = Alignment(horizontal='center', vertical='center', wrap_text=True)
+CENTER_NOWRAP = Alignment(horizontal='center', vertical='center', wrap_text=False)
+
+GREEN_FILL = PatternFill(start_color=GREEN, end_color=GREEN, fill_type='solid')
+GREY_FILL = PatternFill(start_color=GREY, end_color=GREY, fill_type='solid')
 
 
-def _section_header(ws, row, text, span=7):
-    cell = ws.cell(row=row, column=1, value=text)
-    cell.font = SECTION_FONT
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=span)
-    for c in range(1, span + 1):
-        ws.cell(row=row, column=c).fill = HEADER_FILL
-    cell.font = Font(name='Calibri', size=13, bold=True, color='FFFFFFFF')
-    return row + 1
+def _fill(color):
+    return PatternFill(start_color=color, end_color=color, fill_type='solid') if color else None
 
 
-def _table_header(ws, row, headers):
-    for i, h in enumerate(headers, start=1):
-        cell = ws.cell(row=row, column=i, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = CENTER
-        cell.border = BORDER
-    return row + 1
+def _border(left=None, right=None, top=None, bottom=None):
+    return Border(left=left, right=right, top=top, bottom=bottom)
 
 
-def _flag_if_blank(cell, value):
-    cell.value = value if value else None
-    cell.border = BORDER
-    cell.alignment = CENTER
-    cell.font = DATA_FONT
-    if not value:
-        cell.fill = RED_FLAG
+def _set(ws, coord, value=None, font=None, fill=None, align=None, border=None, numfmt=None):
+    cell = ws[coord]
+    if value is not None:
+        cell.value = value
+    if font:
+        cell.font = font
+    if fill:
+        cell.fill = fill
+    if align:
+        cell.alignment = align
+    if border:
+        cell.border = border
+    if numfmt:
+        cell.number_format = numfmt
     return cell
 
 
-def _match_photo(zf, room, name):
-    """Try to find an image in the zip matching this guest's room number or name."""
-    if zf is None:
-        return None
-    names = zf.namelist()
-    room_clean = (room or '').lstrip('0')
-    for n in names:
-        base = n.rsplit('/', 1)[-1]
-        base_no_ext = re.sub(r'\.(jpg|jpeg|png)$', '', base, flags=re.I)
-        if room and (base_no_ext == room or base_no_ext.lstrip('0') == room_clean):
-            return n
-    # fallback: match by surname (first token before comma)
-    surname = (name or '').split(',')[0].strip().lower()
-    for n in names:
-        base = n.rsplit('/', 1)[-1].lower()
-        if surname and surname in base:
-            return n
-    return None
+def _merge(ws, rng):
+    ws.merge_cells(rng)
 
 
-def build_workbook(report_date, forecast, arrivals, in_house, departures, photos_zip_bytes=None):
+def _vip_row(ws, row, guest, code, room, col_d_value, remark_or_time, company, fill_color=None, font_color=None):
+    """One VIP table row: Guest | Code | Room | D | Remarks(E:F) | Company(G:I)."""
+    b = _border(THIN, THIN, THIN, THIN)
+    _set(ws, f'A{row}', guest, DATA_FONT, None, CENTER, b)
+    code_cell = _set(ws, f'B{row}', code, Font(name=FONT_NAME, size=12, bold=True), None, CENTER_NOWRAP, b)
+    if fill_color:
+        code_cell.fill = _fill(fill_color)
+        code_cell.font = Font(name=FONT_NAME, size=12, bold=True, color=font_color or BLACK)
+    _set(ws, f'C{row}', room, DATA_FONT, None, CENTER, b)
+    _set(ws, f'D{row}', col_d_value, DATA_FONT, None, CENTER, b)
+    _merge(ws, f'E{row}:F{row}')
+    _set(ws, f'E{row}', remark_or_time, DATA_FONT, None, CENTER, b)
+    _set(ws, f'F{row}', None, DATA_FONT, None, CENTER, b)
+    _merge(ws, f'G{row}:I{row}')
+    _set(ws, f'G{row}', company, DATA_FONT, None, CENTER, b)
+    for c in 'HI':
+        _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
+
+
+def _vip_table_header(ws, row, d_label, e_label, headerspan_top=True):
+    b = _border(THIN, THIN, MEDIUM if headerspan_top else THIN, MEDIUM)
+    _set(ws, f'A{row}', 'Guest', TABLE_HEADER_FONT, None, CENTER, _border(MEDIUM, THIN, MEDIUM, MEDIUM))
+    _set(ws, f'B{row}', 'Code', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _set(ws, f'C{row}', 'Room', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _set(ws, f'D{row}', d_label, TABLE_HEADER_FONT, GREY_FILL if d_label != 'ETA' else None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _merge(ws, f'E{row}:F{row}')
+    _set(ws, f'E{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _set(ws, f'F{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _merge(ws, f'G{row}:I{row}')
+    _set(ws, f'G{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+    for c in 'HI':
+        _set(ws, f'{c}{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+
+
+def _section_header(ws, row, text, span_end='I', full_border=True):
+    _merge(ws, f'A{row}:{span_end}{row}')
+    b = _border(MEDIUM, MEDIUM, MEDIUM, THIN) if full_border else None
+    _set(ws, f'A{row}', text, Font(name=FONT_NAME, size=16, bold=True), GREEN_FILL, CENTER, b)
+    for col in range(2, 10):
+        cl = get_column_letter(col)
+        if cl <= span_end:
+            _set(ws, f'{cl}{row}', None, None, GREEN_FILL, None, b)
+
+
+def build_workbook(data):
+    """
+    data: the day's JSON dict (see data_store.empty_day for schema).
+    Returns an in-memory .xlsx (BytesIO).
+    """
     wb = Workbook()
     ws = wb.active
     ws.title = 'Accomodation'
 
-    zf = zipfile.ZipFile(io.BytesIO(photos_zip_bytes)) if photos_zip_bytes else None
+    report_date = data.get('iso_date', '')
+    try:
+        from datetime import datetime as _dt
+        display_date = _dt.strptime(report_date, '%Y-%m-%d').strftime('%d %B %Y')
+    except Exception:
+        display_date = report_date
+    title_text = f'FLAMING NEWS FOR {display_date}'
+    quote_text = f"Quote of the Day : \u201c{data.get('quote', '')}\u201d"
 
-    row = 1
-    title = ws.cell(row=row, column=1, value=f'FLAMING NEWS FOR {report_date}')
-    title.font = TITLE_FONT
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=9)
-    row += 2
+    # ---- Row 1: Title / Row 2: Quote ----
+    _merge(ws, 'A1:I1')
+    _set(ws, 'A1', title_text, TITLE_FONT, GREY_FILL, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(ws, 'A2:I2')
+    _set(ws, 'A2', quote_text, TITLE_FONT, GREY_FILL, CENTER, _border(THIN, THIN, THIN, MEDIUM))
 
-    # ---------------- 7 Day Forecast ----------------
-    row = _section_header(ws, row, '7 Day Forecast', span=9)
-    metrics = [
-        ('Occupancy %', 'occupancy_pct', '0.0%'),
-        ('Rooms Occupied', 'rooms_occupied', '0'),
-        ('ADR', 'adr', '#,##0.00'),
-        ('Arrivals', 'arrivals', '0'),
-        ('Departures', 'departures', '0'),
+    # ---- 7 Day Forecast ----
+    _set(ws, 'A3', '7 day Forecast', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, MEDIUM, THIN))
+    _set(ws, 'B3', 'DATE:', SECTION_FONT, GREY_FILL, CENTER, _border(THIN, THIN, MEDIUM, THIN))
+    fc = data.get('forecast', {})
+    dates = fc.get('dates', [''] * 7)
+    for i in range(7):
+        col = get_column_letter(3 + i)
+        _set(ws, f'{col}3', dates[i] if i < len(dates) else '', SECTION_FONT, GREY_FILL, CENTER,
+             _border(THIN, MEDIUM if i == 6 else THIN, MEDIUM, THIN))
+
+    metric_rows = [
+        (4, 'Occupancy %', fc.get('occupancy_pct', [])),
+        (5, 'Rooms Occupied\n(excl house use & comp)', fc.get('rooms_occupied', [])),
+        (6, 'ADR', fc.get('adr', [])),
+        (7, 'Arrivals', fc.get('arrivals', [])),
+        (8, 'Departures ', fc.get('departures', [])),
     ]
-    date_row = row
-    ws.cell(row=date_row, column=1, value='DATE:').font = SECTION_FONT
-    for i, f in enumerate(forecast[:7]):
-        c = ws.cell(row=date_row, column=2 + i, value=f['date'])
-        c.font = DATA_FONT
-        c.alignment = CENTER
-        c.border = BORDER
-    row += 1
-    for label, key, fmt in metrics:
-        ws.cell(row=row, column=1, value=label).font = DATA_FONT
-        for i, f in enumerate(forecast[:7]):
-            c = ws.cell(row=row, column=2 + i, value=f.get(key))
-            c.number_format = fmt
-            c.alignment = CENTER
-            c.border = BORDER
+    for row, label, values in metric_rows:
+        _set(ws, f'A{row}', label, LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, THIN, THIN))
+        for i in range(7):
+            col = get_column_letter(3 + i)
+            v = values[i] if i < len(values) and values[i] != '' else None
+            _set(ws, f'{col}{row}', v, VALUE_FONT, GREY_FILL, CENTER,
+                 _border(THIN, MEDIUM if i == 6 else THIN, THIN, THIN))
+
+    # ---- AM MOD / PM MOD / NM / Weekend EOD  +  House Status / Weather / Enrollments ----
+    _set(ws, 'A9', 'AM MOD:', LABEL_FONT, GREY_FILL, Alignment(horizontal='left', vertical='top', wrap_text=True), _border(MEDIUM, THIN, MEDIUM, THIN))
+    _set(ws, 'B9', data.get('am_mod', ''), VALUE_FONT, GREY_FILL, None, _border(THIN, MEDIUM, MEDIUM, THIN))
+    _set(ws, 'A10', 'PM MOD:', LABEL_FONT, GREY_FILL, Alignment(horizontal='left', vertical='top', wrap_text=True), _border(MEDIUM, THIN, THIN, THIN))
+    _set(ws, 'B10', data.get('pm_mod', ''), VALUE_FONT, GREY_FILL, None, _border(THIN, MEDIUM, THIN, THIN))
+    _set(ws, 'A11', 'NM:', LABEL_FONT, GREY_FILL, Alignment(horizontal='left', vertical='top', wrap_text=True), _border(MEDIUM, THIN, THIN, THIN))
+    _set(ws, 'B11', data.get('nm', ''), VALUE_FONT, GREY_FILL, None, _border(THIN, MEDIUM, THIN, THIN))
+    _set(ws, 'A12', 'Weekend EOD:', LABEL_FONT, GREY_FILL, Alignment(horizontal='left', vertical='top', wrap_text=True), _border(MEDIUM, THIN, THIN, MEDIUM))
+    _set(ws, 'B12', data.get('weekend_eod', ''), VALUE_FONT, GREY_FILL, None, _border(THIN, MEDIUM, THIN, MEDIUM))
+
+    hs = data.get('house_status', {})
+    _merge(ws, 'C9:D9')
+    _set(ws, 'C9', 'House Status', LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _set(ws, 'D9', None, None, GREEN_FILL, None, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _set(ws, 'C10', 'OOS/ OOO', VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(ws, 'D10', hs.get('oos_ooo', ''), VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(ws, 'C11', 'No Show', VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(ws, 'D11', hs.get('no_show', ''), VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(ws, 'C12', 'Comp./house use', VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, MEDIUM))
+    _set(ws, 'D12', hs.get('comp_house_use', ''), VALUE_FONT, None, CENTER, _border(THIN, THIN, THIN, MEDIUM))
+
+    _merge(ws, 'E9:E10')
+    _set(ws, 'E9', 'Weather Today', LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _merge(ws, 'E11:E12')
+    _set(ws, 'E11', data.get('weather', ''), VALUE_FONT, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, THIN, MEDIUM))
+
+    fg = data.get('fairmont_goals', {})
+    _merge(ws, 'F9:G9')
+    _set(ws, 'F9', 'ALL Enrollments Goal', LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, MEDIUM, THIN))
+    _merge(ws, 'F10:G12')
+    _set(ws, 'F10', data.get('enrollments_goal', ''), Font(name=FONT_NAME, size=20, bold=True), GREY_FILL, CENTER, _border(MEDIUM, THIN, THIN, MEDIUM))
+    _merge(ws, 'H9:I9')
+    _set(ws, 'H9', 'ALL Enrollments YTD', LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _merge(ws, 'H10:I12')
+    _set(ws, 'H10', data.get('enrollments_ytd', ''), Font(name=FONT_NAME, size=20, bold=True), GREY_FILL, CENTER, _border(THIN, MEDIUM, THIN, MEDIUM))
+
+    # ---- Fairmont Baku Goals ----
+    _merge(ws, 'A13:I13')
+    _set(ws, 'A13', 'Fairmont Baku 2026 Goals', Font(name=FONT_NAME, size=16), _fill('FF70AD47'), CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'A14', 'CES', SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'C14', fg.get('ces_goal', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'F14', 'RPS', SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'A15', fg.get('ces_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, None, MEDIUM, MEDIUM), numfmt='0%')
+    _set(ws, 'C15', fg.get('ces_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM), numfmt='0%')
+    _set(ws, 'F15', fg.get('rps_goal', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM), numfmt='0.00%')
+    _set(ws, 'F16', fg.get('rps_mtd', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'F17', fg.get('rps_ytd', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+
+    # ---- Site Inspections ----
+    _set(ws, 'A18', 'Site Inspections', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _merge(ws, 'B18:I18')
+    _set(ws, 'B18', None, None, GREEN_FILL, None, _border(None, MEDIUM, MEDIUM, THIN))
+    headers19 = ['Time', 'Guest', 'Position / Company', None, None, None, None, 'Sales Contact']
+    _set(ws, 'A19', 'Time', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, THIN, THIN))
+    _set(ws, 'B19', 'Guest', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(ws, 'C19:G19')
+    _set(ws, 'C19', 'Position / Company', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(ws, 'H19:I19')
+    _set(ws, 'H19', 'Sales Contact', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, MEDIUM, THIN, THIN))
+
+    row = 20
+    inspections = data.get('site_inspections', []) or [{}]
+    for insp in inspections:
+        b = _border(THIN, THIN, THIN, THIN)
+        _set(ws, f'A{row}', insp.get('time', ''), DATA_FONT, None, CENTER, b)
+        _set(ws, f'B{row}', insp.get('guest', ''), DATA_FONT, None, CENTER, b)
+        _merge(ws, f'C{row}:G{row}')
+        _set(ws, f'C{row}', insp.get('position_company', ''), DATA_FONT, None, CENTER, b)
+        for c in 'DEFG':
+            _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
+        _merge(ws, f'H{row}:I{row}')
+        _set(ws, f'H{row}', insp.get('sales_contact', ''), DATA_FONT, None, CENTER, b)
+        _set(ws, f'I{row}', None, DATA_FONT, None, CENTER, b)
         row += 1
     row += 1
 
-    # ---------------- VIP color legend ----------------
-    row = _section_header(ws, row, 'VIP Code Legend', span=7)
-    legend = [('T3', 'ALL GOLD', 'FF000000', 'FFFFFFFF'),
-              ('T4', 'ALL Platinum', 'FFFF0000', 'FFFFFFFF'),
-              ('T5', 'ALL Diamond', 'FFFFFFFF', 'FF000000'),
-              ('T6', 'ALL Limitless', 'FF000000', 'FFFFFFFF'),
-              ('SA', 'Birthday/Anniversary/Recovery', 'FF00B050', 'FFFFFFFF'),
-              ('DV', 'Fairmont Gold', 'FFFFFF00', 'FF000000'),
-              ('V1', '>6 Booking.com res. -> aggregated', None, 'FF000000')]
-    for code, desc, fill, font_col in legend:
-        c1 = ws.cell(row=row, column=1, value=code)
-        c1.font = Font(bold=True, color=font_col if fill else 'FF000000')
-        if fill:
-            c1.fill = PatternFill(start_color=fill, end_color=fill, fill_type='solid')
-        c1.alignment = CENTER
-        c1.border = BORDER
-        c2 = ws.cell(row=row, column=2, value=desc)
-        ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=5)
-        c2.font = DATA_FONT
+    # ---- VIP Arrivals ----
+    _section_header(ws, row, 'VIP Arrivals')
+    row += 1
+    _vip_table_header(ws, row, 'ETA', 'Remarks')
+    row += 1
+    for g in data.get('vip_arrivals', []):
+        fill_c, font_c = rules.color_for_code(g.get('code'))
+        _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
+                  g.get('eta', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c)
         row += 1
     row += 1
 
-    # ---------------- VIP Arrivals (with Photo column) ----------------
-    row = _section_header(ws, row, 'VIP Arrivals', span=8)
-    headers = ['Guest', 'Code', 'Room', 'ETA', 'Remarks', 'Company', 'Photo']
-    header_row = row
-    row = _table_header(ws, row, headers)
-    photo_col = 7
-    ws.column_dimensions[get_column_letter(photo_col)].width = 14
-
-    for rec in arrivals:
-        r = row
-        ws.row_dimensions[r].height = 65
-        ws.cell(row=r, column=1, value=rec['name']); ws.cell(row=r, column=1).font = DATA_FONT
-        ws.cell(row=r, column=1).border = BORDER
-        code_cell = ws.cell(row=r, column=2, value=rec.get('vip_code'))
-        code_cell.border = BORDER
-        code_cell.alignment = CENTER
-        if rec.get('fill_color'):
-            code_cell.fill = PatternFill(start_color=rec['fill_color'], end_color=rec['fill_color'], fill_type='solid')
-            code_cell.font = Font(bold=True, color=rec.get('font_color') or 'FF000000')
-        else:
-            code_cell.font = DATA_FONT
-        _flag_if_blank(ws.cell(row=r, column=3), rec.get('room'))
-        eta_cell = ws.cell(row=r, column=4, value=rec.get('eta') or None)
-        eta_cell.border = BORDER
-        eta_cell.alignment = CENTER
-        eta_cell.font = DATA_FONT  # blank ETA is normal, not flagged
-        rem_cell = ws.cell(row=r, column=5, value=rec.get('remark') or None)
-        rem_cell.border = BORDER
-        rem_cell.font = DATA_FONT
-        comp_cell = ws.cell(row=r, column=6, value=rec.get('company') or None)
-        comp_cell.border = BORDER
-        comp_cell.font = DATA_FONT
-
-        # Photo
-        photo_cell_ref = f'{get_column_letter(photo_col)}{r}'
-        match = _match_photo(zf, rec.get('room'), rec.get('name'))
-        if match:
-            try:
-                img_bytes = zf.read(match)
-                img = XLImage(io.BytesIO(img_bytes))
-                img.width, img.height = 90, 85
-                ws.add_image(img, photo_cell_ref)
-            except Exception:
-                ws.cell(row=r, column=photo_col).fill = RED_FLAG
-        else:
-            ws.cell(row=r, column=photo_col).fill = RED_FLAG
-        ws.cell(row=r, column=photo_col).border = BORDER
+    # ---- VIP In-House Guests ----
+    _section_header(ws, row, 'VIP In-House Guests')
+    row += 1
+    _vip_table_header(ws, row, 'Departure day', 'Remarks')
+    row += 1
+    for g in data.get('vip_inhouse', []):
+        fill_c, font_c = rules.color_for_code(g.get('code'))
+        _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
+                  g.get('departure_day', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c)
         row += 1
     row += 1
 
-    # ---------------- VIP In-House Guests ----------------
-    row = _section_header(ws, row, 'VIP In-House Guests', span=7)
-    row = _table_header(ws, row, ['Guest', 'Code', 'Room', 'Departure day', 'Remarks', 'Company', ''])
-    for rec in in_house:
-        r = row
-        ws.cell(row=r, column=1, value=rec['name']); ws.cell(row=r, column=1).font = DATA_FONT
-        ws.cell(row=r, column=1).border = BORDER
-        code_cell = ws.cell(row=r, column=2, value=rec.get('vip_code'))
-        code_cell.border = BORDER
-        code_cell.alignment = CENTER
-        if rec.get('fill_color'):
-            code_cell.fill = PatternFill(start_color=rec['fill_color'], end_color=rec['fill_color'], fill_type='solid')
-            code_cell.font = Font(bold=True, color=rec.get('font_color') or 'FF000000')
-        else:
-            code_cell.font = DATA_FONT
-        _flag_if_blank(ws.cell(row=r, column=3), rec.get('room'))
-        _flag_if_blank(ws.cell(row=r, column=4), rec.get('dep_date'))
-        rem_cell = ws.cell(row=r, column=5, value=rec.get('remark') or None)
-        rem_cell.border = BORDER
-        rem_cell.font = DATA_FONT
-        comp_cell = ws.cell(row=r, column=6, value=rec.get('company') or None)
-        comp_cell.border = BORDER
-        comp_cell.font = DATA_FONT
-        row += 1
+    # ---- VIP Departures ----
+    _section_header(ws, row, 'VIP Departures')
     row += 1
-
-    # ---------------- VIP Departures ----------------
-    row = _section_header(ws, row, 'VIP Departures', span=7)
-    row = _table_header(ws, row, ['Guest', 'Code', 'Room', 'Departure day', 'Departure Time', 'Company', ''])
-    for rec in departures:
-        r = row
-        ws.cell(row=r, column=1, value=rec['name']); ws.cell(row=r, column=1).font = DATA_FONT
-        ws.cell(row=r, column=1).border = BORDER
-        code_cell = ws.cell(row=r, column=2, value=rec.get('vip_code'))
-        code_cell.border = BORDER
-        code_cell.alignment = CENTER
-        if rec.get('fill_color'):
-            code_cell.fill = PatternFill(start_color=rec['fill_color'], end_color=rec['fill_color'], fill_type='solid')
-            code_cell.font = Font(bold=True, color=rec.get('font_color') or 'FF000000')
-        else:
-            code_cell.font = DATA_FONT
-        _flag_if_blank(ws.cell(row=r, column=3), rec.get('room'))
-        _flag_if_blank(ws.cell(row=r, column=4), rec.get('dep_date'))
-        time_cell = ws.cell(row=r, column=5, value=rec.get('dep_time') or None)
-        time_cell.border = BORDER
-        time_cell.alignment = CENTER
-        time_cell.font = DATA_FONT  # blank departure time is normal
-        comp_cell = ws.cell(row=r, column=6, value=rec.get('company') or None)
-        comp_cell.border = BORDER
-        comp_cell.font = DATA_FONT
+    _vip_table_header(ws, row, 'Departure day', 'Departure Time')
+    row += 1
+    for g in data.get('vip_departures', []):
+        fill_c, font_c = rules.color_for_code(g.get('code'))
+        _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
+                  g.get('departure_day', ''), g.get('departure_time', ''), g.get('company', ''), fill_c, font_c)
         row += 1
 
-    # Column widths
-    widths = {1: 26, 2: 8, 3: 10, 4: 16, 5: 24, 6: 26}
+    widths = {'A': 26, 'B': 8, 'C': 10, 'D': 16, 'E': 14, 'F': 12, 'G': 16, 'H': 14, 'I': 10}
     for col, w in widths.items():
-        ws.column_dimensions[get_column_letter(col)].width = w
+        ws.column_dimensions[col].width = w
 
-    # Print setup - both sheets same paper/orientation for duplex printing
-    ws.print_area = f'A1:I{row+2}'
+    ws.print_area = f'A1:I{row + 1}'
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 1
+    ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
-    # Blank F&B Section sheet (manual entry for now)
+    # =======================================================================
+    # Sheet 2: F&B Section
+    # =======================================================================
     fb = wb.create_sheet('F&B Section')
-    fb.cell(row=1, column=1, value=f'FLAMING NEWS for date {report_date}').font = TITLE_FONT
-    fb.cell(row=3, column=1, value='FOOD & BEVERAGE').font = SECTION_FONT
+    _merge(fb, 'A2:I2')
+    _set(fb, 'A2', title_text, Font(name=FONT_NAME, size=16, bold=True), GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _merge(fb, 'A3:I3')
+    _set(fb, 'A3', quote_text, Font(name=FONT_NAME, size=16, bold=True), GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, THIN, THIN))
+    _merge(fb, 'A4:I4')
+    _set(fb, 'A4', 'FOOD & BEVERAGE', Font(name=FONT_NAME, size=16), GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, THIN, MEDIUM))
+
+    _merge(fb, 'A5:I5')
+    _set(fb, 'A5', 'Events', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, THIN))
+    _set(fb, 'A6', 'Time', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, THIN, THIN))
+    _merge(fb, 'B6:C6')
+    _set(fb, 'B6', 'Meeting Room', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(fb, 'D6:F6')
+    _set(fb, 'D6', 'Company', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(fb, 'G6:I6')
+    _set(fb, 'G6', 'Sales contact', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, MEDIUM, THIN, THIN))
+
+    erow = 7
+    events = data.get('events', []) or [{}, {}]
+    for ev in events:
+        b = _border(THIN, THIN, THIN, THIN)
+        _set(fb, f'A{erow}', ev.get('time', ''), DATA_FONT, GREY_FILL, CENTER, b)
+        _merge(fb, f'B{erow}:C{erow}')
+        _set(fb, f'B{erow}', ev.get('meeting_room', ''), DATA_FONT, GREY_FILL, CENTER, b)
+        _set(fb, f'C{erow}', None, DATA_FONT, GREY_FILL, CENTER, b)
+        _merge(fb, f'D{erow}:F{erow}')
+        _set(fb, f'D{erow}', ev.get('company', ''), DATA_FONT, GREY_FILL, CENTER, b)
+        for c in 'EF':
+            _set(fb, f'{c}{erow}', None, DATA_FONT, GREY_FILL, CENTER, b)
+        _merge(fb, f'G{erow}:I{erow}')
+        _set(fb, f'G{erow}', ev.get('sales_contact', ''), DATA_FONT, GREY_FILL, CENTER, b)
+        for c in 'HI':
+            _set(fb, f'{c}{erow}', None, DATA_FONT, GREY_FILL, CENTER, b)
+        erow += 1
+
+    row9 = erow + 1
+    _set(fb, f'A{row9}', 'Birthday', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, MEDIUM, THIN))
+    _merge(fb, f'B{row9}:C{row9}')
+    _set(fb, f'B{row9}', None, None, GREEN_FILL, None, _border(THIN, THIN, MEDIUM, THIN))
+    _merge(fb, f'D{row9}:I{row9}')
+    _set(fb, f'D{row9}', 'Anniversary', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, MEDIUM, MEDIUM, THIN))
+
+    row10 = row9 + 1
+    _merge(fb, f'A{row10}:C{row10}')
+    _set(fb, f'A{row10}', data.get('birthday', ''), Font(name=FONT_NAME, size=13), GREY_FILL, CENTER, _border(MEDIUM, THIN, THIN, MEDIUM))
+    for c in 'BC':
+        _set(fb, f'{c}{row10}', None, None, GREY_FILL, None, _border(THIN, THIN, THIN, MEDIUM))
+    _merge(fb, f'D{row10}:I{row10}')
+    _set(fb, f'D{row10}', data.get('anniversary', ''), Font(name=FONT_NAME, size=13), GREY_FILL, CENTER, _border(THIN, MEDIUM, THIN, MEDIUM))
+    for c in 'EFGHI':
+        _set(fb, f'{c}{row10}', None, None, GREY_FILL, None, _border(THIN, MEDIUM, THIN, MEDIUM))
+
+    row12 = row10 + 2
+    _merge(fb, f'A{row12}:I{row12}')
+    _set(fb, f'A{row12}', 'Food & Beverage Performance', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, None, THIN))
+
+    row13 = row12 + 1
+    perf_headers = [('A', 'Outlet'), ('B', 'Revenue'), ('C', 'G\u0130H'),
+                    ('D', 'External guests'), ('E', 'Special promotions'), ('G', 'External guests')]
+    for col, label in perf_headers:
+        span = None
+        if col == 'E':
+            span = 'F'
+        if span:
+            _merge(fb, f'{col}{row13}:{span}{row13}')
+        b = _border(THIN if col != 'A' else MEDIUM, MEDIUM if col == 'G' else THIN, THIN, THIN)
+        _set(fb, f'{col}{row13}', label, TABLE_HEADER_FONT, None, CENTER, b)
+        if span:
+            _set(fb, f'{span}{row13}', None, None, None, None, b)
+    _merge(fb, f'G{row13}:I{row13}')
+    for c in 'HI':
+        _set(fb, f'{c}{row13}', None, None, None, None, _border(THIN, MEDIUM, THIN, THIN))
+
+    prow = row13 + 1
+    for perf in data.get('fb_performance', []):
+        b = _border(THIN, THIN, THIN, THIN)
+        _set(fb, f'A{prow}', perf.get('outlet', ''), Font(name=FONT_NAME, size=16, bold=True), None, Alignment(horizontal='left', vertical='center', wrap_text=True), b)
+        _set(fb, f'B{prow}', perf.get('revenue', None), DATA_FONT, GREY_FILL, Alignment(horizontal='right'), b, numfmt='#,##0.00')
+        _set(fb, f'C{prow}', perf.get('gih', None), DATA_FONT, GREY_FILL, Alignment(horizontal='right'), b)
+        _set(fb, f'D{prow}', perf.get('external_guests', None), DATA_FONT, GREY_FILL, CENTER, b)
+        _merge(fb, f'E{prow}:F{prow}')
+        _set(fb, f'E{prow}', perf.get('special_promotions', ''), DATA_FONT, None, CENTER, b)
+        _set(fb, f'F{prow}', None, DATA_FONT, None, CENTER, b)
+        _merge(fb, f'G{prow}:I{prow}')
+        _set(fb, f'G{prow}', perf.get('external_guests_2', ''), DATA_FONT, None, CENTER, b)
+        for c in 'HI':
+            _set(fb, f'{c}{prow}', None, DATA_FONT, None, CENTER, b)
+        prow += 1
+
+    fb_widths = {'A': 22, 'B': 12, 'C': 8, 'D': 14, 'E': 12, 'F': 10, 'G': 14, 'H': 10, 'I': 10}
+    for col, w in fb_widths.items():
+        fb.column_dimensions[col].width = w
+
+    fb.print_area = f'A1:I{prow + 1}'
     fb.page_setup.paperSize = 9
     fb.page_setup.orientation = 'portrait'
     fb.page_setup.fitToWidth = 1
-    fb.page_setup.fitToHeight = 1
+    fb.page_setup.fitToHeight = 0
     fb.sheet_properties.pageSetUpPr.fitToPage = True
-
-    if zf:
-        zf.close()
 
     out = io.BytesIO()
     wb.save(out)

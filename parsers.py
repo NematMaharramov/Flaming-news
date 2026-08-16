@@ -196,3 +196,93 @@ def clean_company(name):
     if not name:
         return ''
     return re.sub(r'^(T-|C-|S-)\s*', '', name).strip()
+
+
+# ---------------------------------------------------------------------------
+# 5. Restaurant / F&B outlet reports -> Food & Beverage Performance section
+# ---------------------------------------------------------------------------
+# The daily "Outlet revenues" export is an .xlsx with one row per outlet:
+#   Outlet name | In house guests | Outside guests | Total PAX | Revenue | Reservation
+# Outlet names in that export are sometimes abbreviated versus the Flaming
+# News template's labels (e.g. "Bar19" vs "Bar 19", "H2O" vs "H2O Pool Bar",
+# "BQT" vs "Banquet") — normalise them to the template's canonical names so
+# they merge into the right row automatically.
+OUTLET_NAME_MAP = {
+    'nur lounge': 'Nur Lounge',
+    'le bistro': 'Le Bistro',
+    'bar19': 'Bar 19',
+    'bar 19': 'Bar 19',
+    'jazz club': 'Jazz Club',
+    'balcon cafe': 'Balcon Café',
+    'balcon café': 'Balcon Café',
+    'minibar': 'Minibar',
+    'in-room dining': 'In-Room Dining',
+    'in room dining': 'In-Room Dining',
+    'h2o': 'H2O Pool Bar',
+    'h2o pool bar': 'H2O Pool Bar',
+    'bqt': 'Banquet',
+    'banquet': 'Banquet',
+}
+
+
+def _canonical_outlet(name):
+    key = (name or '').strip().lower()
+    return OUTLET_NAME_MAP.get(key, (name or '').strip())
+
+
+def parse_fb_report(file_stream):
+    """
+    Parse the daily "Outlet revenues" F&B export (.xlsx) into per-outlet
+    Revenue / GIH (in-house guest covers) / External guest covers, matched
+    against the template's outlet names.
+
+    Expected columns (header row, any exact casing/spacing tolerated by
+    fuzzy header matching): Outlet name, In house guests, Outside guests,
+    Total PAX, Revenue, Reservation.
+
+    Returns: list of {'outlet': str, 'revenue': float|None, 'gih': int|None,
+                       'external_guests': int|None}
+    """
+    import openpyxl
+
+    wb = openpyxl.load_workbook(file_stream, data_only=True, read_only=True)
+    ws = wb[wb.sheetnames[0]]
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+
+    header = [str(h).strip().lower() if h is not None else '' for h in rows[0]]
+
+    def _col(*candidates):
+        for cand in candidates:
+            for i, h in enumerate(header):
+                if cand in h:
+                    return i
+        return None
+
+    col_outlet = _col('outlet')
+    col_gih = _col('in house', 'in-house', 'inhouse')
+    col_external = _col('outside', 'external')
+    col_revenue = _col('revenue')
+
+    results = []
+    for row in rows[1:]:
+        if col_outlet is None or col_outlet >= len(row):
+            continue
+        outlet_raw = row[col_outlet]
+        if not outlet_raw or not str(outlet_raw).strip():
+            continue
+
+        def _get(i):
+            if i is None or i >= len(row):
+                return None
+            v = row[i]
+            return v if v not in (None, '') else None
+
+        results.append({
+            'outlet': _canonical_outlet(str(outlet_raw)),
+            'revenue': _get(col_revenue),
+            'gih': _get(col_gih),
+            'external_guests': _get(col_external),
+        })
+    return results
