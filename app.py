@@ -90,7 +90,7 @@ def api_upload_fb():
     if not f or not f.filename:
         return jsonify({'status': 'error', 'message': 'No file uploaded'}), 400
     try:
-        records = parsers.parse_fb_report(f.stream)
+        records = parsers.parse_fb_report(f.stream, f.filename or '')
         return jsonify({'status': 'ok', 'target': 'fb_performance', 'records': records})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400

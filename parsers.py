@@ -146,39 +146,64 @@ def parse_arrivals(file_stream):
 # ---------------------------------------------------------------------------
 # 4. Departures -> VIP Departures section
 # ---------------------------------------------------------------------------
+# Real-world "Departures" PMS exports are messier than the other reports:
+# name/company sometimes wrap onto the next physical line mid-word, and the
+# numeric columns after Rms (Nts/RoomType/BlockCode/RateCode/ResStatus/
+# DepTime/PayMth/Balance) don't keep a fixed token count row to row (some
+# columns are blank). Since we only need room/name/company/vip_code/
+# dep_date/dep_time for Flaming News, the parser captures a generous "rest
+# of line" tail after the VIP code + dates and pulls dep_time out of that
+# with a separate search, rather than trying to positionally match every
+# trailing column.
+_DEP_MAIN_RE = re.compile(
+    r'^(\d{3,4})\s+([A-Za-z][^0-9]+?)\s+'
+    r'(?:(?:T-|C-|S-)\s*(.+?)\s+)?'
+    r'(T3|T4|T5|T6|DV|SA|V1)\s+'
+    r'(\d{2}\.\d{2}\.\d{2})\s+(\d{2}\.\d{2}\.\d{2})\s+(.*)$'
+)
+_DEP_TIME_RE = re.compile(r'\b(\d{1,2}:\d{2})\b')
+_TITLE_SUFFIX_RE = re.compile(r',\s*(MR|MRS|MS|MISS|DOC|JR)\.?\s*$', re.I)
+_DEP_SKIP_WORDS = ('G-', 'Res.Comments', 'Reservation', 'General', 'Specials',
+                    'Membership', 'Profile', 'Page', 'Filter', 'Room Class',
+                    'Departure Time', 'Profile Type')
+
+
 def parse_departures(file_stream):
     lines = _extract_text(file_stream)
     records = []
     current = None
-    main_re = re.compile(
-        r'^(\d{4})\s+([A-Za-z][^0-9]+?)\s+'
-        r'(?:(?:T-|C-|S-)\s*(.+?)\s+)?'
-        r'(T3|T4|T5|T6|DV|SA|V1)\s+'
-        r'(\d{2}\.\d{2}\.\d{2})\s+(\d{2}\.\d{2}\.\d{2})\s+'
-        r'(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([A-Z0-9]+)\s+(\S+)\s+([A-Z]{2,4})'
-        r'(?:\s+(\d{1,2}:\d{2}))?\s+([A-Z]{2})$'
-    )
-    skip_words = ('G-', 'Res.Comments', 'Reservation', 'General', 'Specials',
-                  'Membership', 'Profile')
     for i, raw in enumerate(lines):
         line = raw.rstrip()
-        m = main_re.match(line)
+        m = _DEP_MAIN_RE.match(line)
         if m:
-            (room, name, company, vip_code, arr, dep, adl, chl, rms, nts,
-             roomtype, rate, resstatus, dep_time, paymth) = m.groups()
+            room, name, company, vip_code, arr, dep, rest = m.groups()
+            name = name.strip()
             company = (company or '').strip()
+            dep_time_match = _DEP_TIME_RE.search(rest)
+            dep_time = dep_time_match.group(1) if dep_time_match else ''
+
+            # Handle the common one-line wrap: a name/company fragment that
+            # spilled onto the very next physical line.
             if i + 1 < len(lines):
                 nxt = lines[i + 1].strip()
-                if (re.match(r'^\(?[A-Za-z .()]+\)?$', nxt) and
-                        not any(nxt.startswith(w) for w in skip_words)):
-                    company = (company + ' ' + nxt).strip()
+                is_skippable = any(nxt.startswith(w) for w in _DEP_SKIP_WORDS)
+                looks_textual = bool(re.match(r'^\(?[A-Za-z ,.()]+\)?$', nxt))
+                has_upper = any(ch.isupper() for ch in nxt)
+                if looks_textual and not is_skippable and has_upper:
+                    if not _TITLE_SUFFIX_RE.search(name) and re.match(r'^[A-Za-z]{1,2}$', nxt):
+                        name = name + nxt  # e.g. "Ibrahim,Muhammad,M" + "R"
+                    elif not _TITLE_SUFFIX_RE.search(name):
+                        name = (name + ' ' + nxt).strip()  # wrapped full name
+                    else:
+                        company = (company + ' ' + nxt).strip()  # wrapped company
+
             current = {
                 'room': room,
-                'name': name.strip(),
+                'name': name,
                 'company': company,
                 'vip_code': vip_code,
                 'dep_date': dep,
-                'dep_time': dep_time or '',
+                'dep_time': dep_time,
                 'raw_specials': [],
             }
             records.append(current)
@@ -230,7 +255,7 @@ def _canonical_outlet(name):
     return OUTLET_NAME_MAP.get(key, (name or '').strip())
 
 
-def parse_fb_report(file_stream):
+def parse_fb_report_xlsx(file_stream):
     """
     Parse the daily "Outlet revenues" F&B export (.xlsx) into per-outlet
     Revenue / GIH (in-house guest covers) / External guest covers, matched
@@ -286,3 +311,55 @@ def parse_fb_report(file_stream):
             'external_guests': _get(col_external),
         })
     return results
+
+
+def parse_fb_report_pdf(file_stream):
+    """
+    Fallback for a restaurant / F&B report supplied as a PDF instead of the
+    structured "Outlet revenues" Excel export. Looks, per known outlet name,
+    for the nearest run of numbers on the same or next line and takes the
+    first three as (revenue, gih_covers, external_covers). Anything it
+    cannot confidently read is left blank rather than guessed.
+    """
+    lines = _extract_text(file_stream)
+    results = []
+    for idx, raw in enumerate(lines):
+        line = raw.strip()
+        matched_outlet = None
+        for key, canonical in OUTLET_NAME_MAP.items():
+            if key in line.lower():
+                matched_outlet = canonical
+                break
+        if not matched_outlet or any(r['outlet'] == matched_outlet for r in results):
+            continue
+
+        nums = re.findall(_NUM, line)
+        if len(nums) < 2 and idx + 1 < len(lines):
+            nums += re.findall(_NUM, lines[idx + 1].strip())
+
+        def _num(i, cast=float):
+            if i < len(nums):
+                try:
+                    return cast(nums[i].replace(',', ''))
+                except ValueError:
+                    return None
+            return None
+
+        results.append({
+            'outlet': matched_outlet,
+            'revenue': _num(0, float),
+            'gih': _num(1, int),
+            'external_guests': _num(2, int),
+        })
+    return results
+
+
+_NUM = r'[\d,]+(?:\.\d+)?'
+
+
+def parse_fb_report(file_stream, filename=''):
+    """Dispatch to the xlsx parser (the real daily report format) or the PDF
+    heuristic fallback, based on the uploaded file's extension."""
+    if filename.lower().endswith(('.xlsx', '.xlsm', '.xls')):
+        return parse_fb_report_xlsx(file_stream)
+    return parse_fb_report_pdf(file_stream)
