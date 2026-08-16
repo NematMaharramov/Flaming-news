@@ -41,6 +41,7 @@ def empty_day(iso_date):
         'enrollments_goal': '', 'enrollments_ytd': '',
         'fairmont_goals': {
             'ces_goal': '', 'ces_actual': '',
+            'lqa_goal': '', 'lqa_actual': '',
             'rps_goal': '', 'rps_mtd': '', 'rps_ytd': '',
         },
         'site_inspections': [],
@@ -48,8 +49,8 @@ def empty_day(iso_date):
         'vip_inhouse': [],
         'vip_departures': [],
         'events': [],
-        'birthday': '',
-        'anniversary': '',
+        'birthday': ['', '', '', ''],
+        'anniversary': ['', '', '', ''],
         'fb_performance': [],
     }
 
@@ -111,6 +112,9 @@ def load_today_or_carry_forward(iso_date=None):
     carried['vip_departures'] = []
     carried['site_inspections'] = []
     carried['fb_performance'] = []
+    carried['events'] = []
+    carried['birthday'] = ['', '', '', '']
+    carried['anniversary'] = ['', '', '', '']
 
     return carried, True, prev_date
 

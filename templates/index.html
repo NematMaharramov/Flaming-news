@@ -58,6 +58,7 @@
   .goals-block td { background:var(--grey); text-align:center; font-size:13px; }
   .goals-block .label { background:var(--grey); font-weight:normal; }
   .note { font-size:11px; color:#888; padding:6px 10px; }
+  .cell.needs-review { background:#fff3b0 !important; outline:1px solid #e0a800; }
   .toast { position:fixed; bottom:20px; right:20px; background:#2e7d32; color:#fff; padding:10px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.2); display:none; z-index:100; }
   .toast.error { background:#c0392b; }
 </style>
@@ -124,15 +125,15 @@
     <tr class="section-row"><td colspan="9" style="background:#70AD47;">Fairmont Baku 2026 Goals</td></tr>
     <tr class="goals-block">
       <td class="label">CES Goal</td><td><input class="cell" data-path="fairmont_goals.ces_goal"></td>
-      <td></td>
-      <td class="label">RPS Goal</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_goal"></td>
-      <td class="label">RPS MTD</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_mtd"></td>
+      <td class="label">LQA Goal</td><td><input class="cell" data-path="fairmont_goals.lqa_goal"></td>
+      <td class="label">RPS Goal</td><td><input class="cell" data-path="fairmont_goals.rps_goal"></td>
+      <td class="label">RPS MTD</td><td><input class="cell" data-path="fairmont_goals.rps_mtd"></td>
     </tr>
     <tr class="goals-block">
       <td class="label">CES Actual</td><td><input class="cell" data-path="fairmont_goals.ces_actual"></td>
-      <td></td>
-      <td class="label">RPS YTD</td><td colspan="2"><input class="cell" data-path="fairmont_goals.rps_ytd"></td>
-      <td colspan="3"></td>
+      <td class="label">LQA Actual</td><td><input class="cell" data-path="fairmont_goals.lqa_actual"></td>
+      <td class="label">RPS YTD</td><td><input class="cell" data-path="fairmont_goals.rps_ytd"></td>
+      <td colspan="2"></td>
     </tr>
   </table>
 
@@ -216,14 +217,14 @@
 
   <table class="grid" style="margin-top:8px;">
     <tr>
-      <td colspan="3" class="section-row" style="padding:0;"><div style="padding:6px;">Birthday</div></td>
-      <td colspan="6" class="section-row" style="padding:0;"><div style="padding:6px;">Anniversary</div></td>
+      <td colspan="3" class="section-row" style="padding:6px;">Birthday</td>
+      <td colspan="6" class="section-row" style="padding:6px;">Anniversary</td>
     </tr>
-    <tr>
-      <td colspan="3" class="val-cell" style="padding:0;"><textarea class="cell left-align" data-path="birthday" style="min-height:80px;"></textarea></td>
-      <td colspan="6" class="val-cell" style="padding:0;"><textarea class="cell left-align" data-path="anniversary" style="min-height:80px;"></textarea></td>
-    </tr>
+    <tbody id="birthdayAnniversaryBody"></tbody>
   </table>
+  <div class="add-row-bar">
+    <button class="btn small secondary" id="addBirthdayLineBtn">+ Add line</button>
+  </div>
 
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">Food &amp; Beverage Performance</td></tr>
@@ -279,6 +280,57 @@ function refreshTitles() {
   document.getElementById('quoteCell2').textContent = 'Quote of the Day : “' + (STATE.quote || '') + '”';
 }
 
+// ---------- date / time auto-formatting ----------
+// User types digits (with or without separators) -> normalised on blur/Enter/Tab.
+// Dates -> DD.MM.YYYY, Times -> HH:MM. Never fights the user while still typing.
+function formatDateStr(raw) {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (!digits) return raw || '';
+  let dd, mm, yyyy;
+  if (digits.length === 8) { dd = digits.slice(0,2); mm = digits.slice(2,4); yyyy = digits.slice(4,8); }
+  else if (digits.length === 6) { dd = digits.slice(0,2); mm = digits.slice(2,4); yyyy = '20'+digits.slice(4,6); }
+  else if (digits.length === 4) { dd = digits.slice(0,2); mm = digits.slice(2,4); yyyy = String(new Date().getFullYear()); }
+  else { return raw; } // not enough info to safely reformat — leave as typed
+  dd = Math.min(31, Math.max(1, parseInt(dd,10)||1));
+  mm = Math.min(12, Math.max(1, parseInt(mm,10)||1));
+  return `${String(dd).padStart(2,'0')}.${String(mm).padStart(2,'0')}.${yyyy}`;
+}
+function formatTimeStr(raw) {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (!digits) return raw || '';
+  let hh, mi;
+  if (digits.length === 4) { hh = digits.slice(0,2); mi = digits.slice(2,4); }
+  else if (digits.length === 3) { hh = digits.slice(0,1); mi = digits.slice(1,3); }
+  else if (digits.length <= 2) { hh = digits; mi = '00'; }
+  else { return raw; }
+  hh = Math.min(23, Math.max(0, parseInt(hh,10)||0));
+  mi = Math.min(59, Math.max(0, parseInt(mi,10)||0));
+  return `${String(hh).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+}
+function attachAutoFormat(el, kind) {
+  const fmt = kind === 'date' ? formatDateStr : formatTimeStr;
+  const commit = () => {
+    const formatted = fmt(el.value);
+    if (formatted !== el.value) {
+      el.value = formatted;
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+  };
+  el.addEventListener('blur', commit);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Tab') commit(); });
+}
+
+// ---------- "needs review" highlight (cleared the moment the user edits it) ----------
+function markNeedsReview(el) {
+  el.classList.add('needs-review');
+  el.title = 'Avtomatik tapılmadı — yoxlayıb düzəlt';
+}
+function attachReviewClear(el) {
+  const clear = () => { el.classList.remove('needs-review'); el.title=''; };
+  el.addEventListener('input', clear, {once:true});
+  el.addEventListener('change', clear, {once:true});
+}
+
 // ---------- generic cell factory ----------
 function cellInput(path, value, opts={}) {
   const tag = opts.textarea ? 'textarea' : 'input';
@@ -288,6 +340,8 @@ function cellInput(path, value, opts={}) {
   el.value = value == null ? '' : value;
   el.dataset.path = path;
   el.addEventListener('input', () => setPath(STATE, path, el.value));
+  if (opts.kind === 'date' || opts.kind === 'time') attachAutoFormat(el, opts.kind);
+  if (opts.needsReview) { markNeedsReview(el); attachReviewClear(el); }
   return el;
 }
 
@@ -340,7 +394,7 @@ function renderForecast() {
   dateRow.innerHTML = '';
   const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight='bold'; dateRow.appendChild(lbl);
   for (let i=0;i<7;i++) {
-    dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i])));
+    dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i], {kind:'date'})));
   }
   const body = document.getElementById('forecastMetrics');
   body.innerHTML = '';
@@ -361,7 +415,7 @@ function renderInspections() {
   body.innerHTML = '';
   (STATE.site_inspections||[]).forEach((row,i)=>{
     const tr = document.createElement('tr');
-    tr.appendChild(td(cellInput(`site_inspections.${i}.time`, row.time)));
+    tr.appendChild(td(cellInput(`site_inspections.${i}.time`, row.time, {kind:'time'})));
     tr.appendChild(td(cellInput(`site_inspections.${i}.guest`, row.guest)));
     tr.appendChild(td(cellInput(`site_inspections.${i}.position_company`, row.position_company), {colspan:4}));
     tr.appendChild(td(cellInput(`site_inspections.${i}.sales_contact`, row.sales_contact), {colspan:2}));
@@ -376,7 +430,7 @@ document.getElementById('addInspectionBtn').addEventListener('click', ()=>{
 });
 
 // ---------- VIP tables ----------
-function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey) {
+function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, thirdKind) {
   const body = document.getElementById(bodyId);
   body.innerHTML = '';
   (STATE[listKey]||[]).forEach((row,i)=>{
@@ -384,16 +438,16 @@ function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey) {
     tr.appendChild(td(cellInput(`${listKey}.${i}.guest`, row.guest)));
     tr.appendChild(td(codeSelect(`${listKey}.${i}.code`, row.code)));
     tr.appendChild(td(cellInput(`${listKey}.${i}.room`, row.room)));
-    tr.appendChild(td(cellInput(`${listKey}.${i}.${dateFieldKey}`, row[dateFieldKey])));
-    tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey]), {colspan:2}));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.${dateFieldKey}`, row[dateFieldKey], {kind:dateKind})));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey], {kind:thirdKind, needsReview: !!row.remarks_needs_review}), {colspan:2}));
     tr.appendChild(td(cellInput(`${listKey}.${i}.company`, row.company), {colspan:2}));
-    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey); }), {cls:'row-actions'}));
+    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind); }), {cls:'row-actions'}));
     body.appendChild(tr);
   });
 }
-function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks'); }
-function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks'); }
-function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time'); }
+function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks','time',null); }
+function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks','date',null); }
+function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time','date','time'); }
 
 document.getElementById('addArrivalBtn').addEventListener('click', ()=>{
   STATE.vip_arrivals = STATE.vip_arrivals||[]; STATE.vip_arrivals.push({guest:'',code:'',room:'',eta:'',remarks:'',company:''}); renderArrivals();
@@ -411,7 +465,7 @@ function renderEvents() {
   body.innerHTML = '';
   (STATE.events||[]).forEach((row,i)=>{
     const tr = document.createElement('tr');
-    tr.appendChild(td(cellInput(`events.${i}.time`, row.time)));
+    tr.appendChild(td(cellInput(`events.${i}.time`, row.time, {kind:'time'})));
     tr.appendChild(td(cellInput(`events.${i}.meeting_room`, row.meeting_room), {colspan:2}));
     tr.appendChild(td(cellInput(`events.${i}.company`, row.company), {colspan:3}));
     tr.appendChild(td(cellInput(`events.${i}.sales_contact`, row.sales_contact), {colspan:2}));
@@ -421,6 +475,29 @@ function renderEvents() {
 }
 document.getElementById('addEventBtn').addEventListener('click', ()=>{
   STATE.events = STATE.events||[]; STATE.events.push({time:'',meeting_room:'',company:'',sales_contact:''}); renderEvents();
+});
+
+// ---------- Birthday / Anniversary (simple parallel name lists) ----------
+function renderBirthdayAnniversary() {
+  const body = document.getElementById('birthdayAnniversaryBody');
+  body.innerHTML = '';
+  STATE.birthday = STATE.birthday && STATE.birthday.length ? STATE.birthday : [''];
+  STATE.anniversary = STATE.anniversary && STATE.anniversary.length ? STATE.anniversary : [''];
+  const n = Math.max(STATE.birthday.length, STATE.anniversary.length);
+  for (let i=0;i<n;i++){
+    while (STATE.birthday.length <= i) STATE.birthday.push('');
+    while (STATE.anniversary.length <= i) STATE.anniversary.push('');
+    const tr = document.createElement('tr');
+    tr.appendChild(td(cellInput(`birthday.${i}`, STATE.birthday[i]), {colspan:3, cls:'left-align'}));
+    tr.appendChild(td(cellInput(`anniversary.${i}`, STATE.anniversary[i]), {colspan:5, cls:'left-align'}));
+    tr.appendChild(td(removeBtn(()=>{
+      STATE.birthday.splice(i,1); STATE.anniversary.splice(i,1); renderBirthdayAnniversary();
+    }), {cls:'row-actions'}));
+    body.appendChild(tr);
+  }
+}
+document.getElementById('addBirthdayLineBtn').addEventListener('click', ()=>{
+  STATE.birthday.push(''); STATE.anniversary.push(''); renderBirthdayAnniversary();
 });
 
 // ---------- F&B performance ----------
@@ -468,6 +545,7 @@ function renderAll() {
   renderInhouse();
   renderDepartures();
   renderEvents();
+  renderBirthdayAnniversary();
   renderFbPerf();
 }
 

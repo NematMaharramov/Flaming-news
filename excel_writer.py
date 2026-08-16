@@ -203,9 +203,13 @@ def build_workbook(data):
     _set(ws, 'A13', 'Fairmont Baku 2026 Goals', Font(name=FONT_NAME, size=16), _fill('FF70AD47'), CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
     _set(ws, 'A14', 'CES', SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
     _set(ws, 'C14', fg.get('ces_goal', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'D14', 'LQA', SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'E14', fg.get('lqa_goal', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
     _set(ws, 'F14', 'RPS', SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
     _set(ws, 'A15', fg.get('ces_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, None, MEDIUM, MEDIUM), numfmt='0%')
     _set(ws, 'C15', fg.get('ces_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM), numfmt='0%')
+    _set(ws, 'D15', fg.get('lqa_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
+    _set(ws, 'E15', fg.get('lqa_actual', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM), numfmt='0%')
     _set(ws, 'F15', fg.get('rps_goal', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM), numfmt='0.00%')
     _set(ws, 'F16', fg.get('rps_mtd', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
     _set(ws, 'F17', fg.get('rps_ytd', ''), SECTION_FONT_PLAIN, GREY_FILL, CENTER, _border(MEDIUM, MEDIUM, MEDIUM, MEDIUM))
@@ -330,17 +334,32 @@ def build_workbook(data):
     _merge(fb, f'D{row9}:I{row9}')
     _set(fb, f'D{row9}', 'Anniversary', TABLE_HEADER_FONT, GREEN_FILL, CENTER, _border(THIN, MEDIUM, MEDIUM, THIN))
 
-    row10 = row9 + 1
-    _merge(fb, f'A{row10}:C{row10}')
-    _set(fb, f'A{row10}', data.get('birthday', ''), Font(name=FONT_NAME, size=13), GREY_FILL, CENTER, _border(MEDIUM, THIN, THIN, MEDIUM))
-    for c in 'BC':
-        _set(fb, f'{c}{row10}', None, None, GREY_FILL, None, _border(THIN, THIN, THIN, MEDIUM))
-    _merge(fb, f'D{row10}:I{row10}')
-    _set(fb, f'D{row10}', data.get('anniversary', ''), Font(name=FONT_NAME, size=13), GREY_FILL, CENTER, _border(THIN, MEDIUM, THIN, MEDIUM))
-    for c in 'EFGHI':
-        _set(fb, f'{c}{row10}', None, None, GREY_FILL, None, _border(THIN, MEDIUM, THIN, MEDIUM))
+    birthdays = data.get('birthday', []) or ['']
+    anniversaries = data.get('anniversary', []) or ['']
+    if isinstance(birthdays, str):
+        birthdays = [birthdays]
+    if isinstance(anniversaries, str):
+        anniversaries = [anniversaries]
+    n_lines = max(len(birthdays), len(anniversaries), 1)
 
-    row12 = row10 + 2
+    row10 = row9 + 1
+    for i in range(n_lines):
+        r = row10 + i
+        bottom = MEDIUM if i == n_lines - 1 else THIN
+        _merge(fb, f'A{r}:C{r}')
+        bval = birthdays[i] if i < len(birthdays) else ''
+        _set(fb, f'A{r}', bval, Font(name=FONT_NAME, size=13), GREY_FILL,
+             Alignment(horizontal='left', vertical='center'), _border(MEDIUM, THIN, THIN, bottom))
+        for c in 'BC':
+            _set(fb, f'{c}{r}', None, None, GREY_FILL, None, _border(THIN, THIN, THIN, bottom))
+        _merge(fb, f'D{r}:I{r}')
+        aval = anniversaries[i] if i < len(anniversaries) else ''
+        _set(fb, f'D{r}', aval, Font(name=FONT_NAME, size=13), GREY_FILL,
+             Alignment(horizontal='left', vertical='center'), _border(THIN, MEDIUM, THIN, bottom))
+        for c in 'EFGHI':
+            _set(fb, f'{c}{r}', None, None, GREY_FILL, None, _border(THIN, MEDIUM, THIN, bottom))
+
+    row12 = row10 + n_lines + 1
     _merge(fb, f'A{row12}:I{row12}')
     _set(fb, f'A{row12}', 'Food & Beverage Performance', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, None, THIN))
 
