@@ -72,44 +72,36 @@ def _merge(ws, rng):
 
 
 def _vip_row(ws, row, guest, code, room, col_d_value, remark_or_time, company,
-             fill_color=None, font_color=None, photo_fs_path=None, has_photo_col=False):
+             fill_color=None, font_color=None, photo_fs_path=None):
     """
-    One VIP table row.
-    Without photo column: Guest | Code | Room | D | Remarks/Time(E:F) | Company(G:I)
-    With photo column:    Guest | Code | Room | D | Photo(E) | Remarks(F:G) | Company(H:I)
+    One VIP table row: Guest(+photo if any, A) | Code | Room | D | Remarks/Time(E:F) | Company(G:I).
+    The photo (when present) is embedded inside the Guest cell itself rather
+    than taking its own column, so rows with and without a photo are the
+    same width/shape — matching the source template exactly.
     """
     b = _border(THIN, THIN, THIN, THIN)
-    _set(ws, f'A{row}', guest, DATA_FONT, None, CENTER, b)
+    guest_align = Alignment(horizontal='left', vertical='center', indent=1) if photo_fs_path else CENTER
+    _set(ws, f'A{row}', guest, DATA_FONT, None, guest_align, b)
+    if photo_fs_path:
+        _embed_photo(ws, f'A{row}', photo_fs_path)
     code_cell = _set(ws, f'B{row}', code, Font(name=FONT_NAME, size=12, bold=True), None, CENTER_NOWRAP, b)
     if fill_color:
         code_cell.fill = _fill(fill_color)
         code_cell.font = Font(name=FONT_NAME, size=12, bold=True, color=font_color or BLACK)
     _set(ws, f'C{row}', room, DATA_FONT, None, CENTER, b)
     _set(ws, f'D{row}', col_d_value, DATA_FONT, None, CENTER, b)
-
-    if has_photo_col:
-        _set(ws, f'E{row}', None, DATA_FONT, None, CENTER, b)
-        if photo_fs_path:
-            _embed_photo(ws, f'E{row}', photo_fs_path)
-        _merge(ws, f'F{row}:G{row}')
-        _set(ws, f'F{row}', remark_or_time, DATA_FONT, None, CENTER, b)
-        _set(ws, f'G{row}', None, DATA_FONT, None, CENTER, b)
-        _merge(ws, f'H{row}:I{row}')
-        _set(ws, f'H{row}', company, DATA_FONT, None, CENTER, b)
-        _set(ws, f'I{row}', None, DATA_FONT, None, CENTER, b)
-        ws.row_dimensions[row].height = 32  # fixed row height — same for every guest, photo or not
-    else:
-        _merge(ws, f'E{row}:F{row}')
-        _set(ws, f'E{row}', remark_or_time, DATA_FONT, None, CENTER, b)
-        _set(ws, f'F{row}', None, DATA_FONT, None, CENTER, b)
-        _merge(ws, f'G{row}:I{row}')
-        _set(ws, f'G{row}', company, DATA_FONT, None, CENTER, b)
-        for c in 'HI':
-            _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
+    _merge(ws, f'E{row}:F{row}')
+    _set(ws, f'E{row}', remark_or_time, DATA_FONT, None, CENTER, b)
+    _set(ws, f'F{row}', None, DATA_FONT, None, CENTER, b)
+    _merge(ws, f'G{row}:I{row}')
+    _set(ws, f'G{row}', company, DATA_FONT, None, CENTER, b)
+    for c in 'HI':
+        _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
+    ws.row_dimensions[row].height = 24  # fixed — every VIP row is the same size, photo or not
 
 
 def _embed_photo(ws, coord, fs_path):
-    """Insert a fixed-size (so every row stays the same height) guest photo.
+    """Insert a fixed-size guest photo into the left edge of the Guest cell.
     Uses an explicit OneCellAnchor with a fixed extent — setting
     Image.width/height alone does not reliably persist through save/reload
     in openpyxl, since add_image() can re-derive the size from the source
@@ -126,8 +118,8 @@ def _embed_photo(ws, coord, fs_path):
         row_idx = row_num - 1  # 0-based
 
         img = XLImage(fs_path)
-        size = XDRPositiveSize2D(pixels_to_EMU(28), pixels_to_EMU(28))
-        marker = AnchorMarker(col=col_idx, colOff=pixels_to_EMU(2), row=row_idx, rowOff=pixels_to_EMU(2))
+        size = XDRPositiveSize2D(pixels_to_EMU(18), pixels_to_EMU(18))
+        marker = AnchorMarker(col=col_idx, colOff=pixels_to_EMU(1), row=row_idx, rowOff=pixels_to_EMU(1))
         img.anchor = OneCellAnchor(_from=marker, ext=size)
         ws.add_image(img)
     except Exception:
@@ -143,29 +135,19 @@ def _photo_fs_path(photo_url):
     return fs_path if os.path.isfile(fs_path) else None
 
 
-def _vip_table_header(ws, row, d_label, e_label, headerspan_top=True, has_photo_col=False):
+def _vip_table_header(ws, row, d_label, e_label, headerspan_top=True):
     b = _border(THIN, THIN, MEDIUM if headerspan_top else THIN, MEDIUM)
     _set(ws, f'A{row}', 'Guest', TABLE_HEADER_FONT, None, CENTER, _border(MEDIUM, THIN, MEDIUM, MEDIUM))
     _set(ws, f'B{row}', 'Code', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
     _set(ws, f'C{row}', 'Room', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
     _set(ws, f'D{row}', d_label, TABLE_HEADER_FONT, GREY_FILL if d_label != 'ETA' else None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-
-    if has_photo_col:
-        _set(ws, f'E{row}', 'Photo', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-        _merge(ws, f'F{row}:G{row}')
-        _set(ws, f'F{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-        _set(ws, f'G{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
-        _merge(ws, f'H{row}:I{row}')
-        _set(ws, f'H{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
-        _set(ws, f'I{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
-    else:
-        _merge(ws, f'E{row}:F{row}')
-        _set(ws, f'E{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-        _set(ws, f'F{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
-        _merge(ws, f'G{row}:I{row}')
-        _set(ws, f'G{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
-        for c in 'HI':
-            _set(ws, f'{c}{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+    _merge(ws, f'E{row}:F{row}')
+    _set(ws, f'E{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _set(ws, f'F{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
+    _merge(ws, f'G{row}:I{row}')
+    _set(ws, f'G{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+    for c in 'HI':
+        _set(ws, f'{c}{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
 
 
 def _section_header(ws, row, text, span_end='I', full_border=True):
@@ -310,26 +292,26 @@ def build_workbook(data):
     # ---- VIP Arrivals ----
     _section_header(ws, row, 'VIP Arrivals')
     row += 1
-    _vip_table_header(ws, row, 'ETA', 'Remarks', has_photo_col=True)
+    _vip_table_header(ws, row, 'ETA', 'Remarks')
     row += 1
     for g in data.get('vip_arrivals', []):
         fill_c, font_c = rules.color_for_code(g.get('code'))
         _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
                   g.get('eta', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c,
-                  photo_fs_path=_photo_fs_path(g.get('photo')), has_photo_col=True)
+                  photo_fs_path=_photo_fs_path(g.get('photo')))
         row += 1
     row += 1
 
     # ---- VIP In-House Guests ----
     _section_header(ws, row, 'VIP In-House Guests')
     row += 1
-    _vip_table_header(ws, row, 'Departure day', 'Remarks', has_photo_col=True)
+    _vip_table_header(ws, row, 'Departure day', 'Remarks')
     row += 1
     for g in data.get('vip_inhouse', []):
         fill_c, font_c = rules.color_for_code(g.get('code'))
         _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
                   g.get('departure_day', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c,
-                  photo_fs_path=_photo_fs_path(g.get('photo')), has_photo_col=True)
+                  photo_fs_path=_photo_fs_path(g.get('photo')))
         row += 1
     row += 1
 
@@ -341,7 +323,8 @@ def build_workbook(data):
     for g in data.get('vip_departures', []):
         fill_c, font_c = rules.color_for_code(g.get('code'))
         _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
-                  g.get('departure_day', ''), g.get('departure_time', ''), g.get('company', ''), fill_c, font_c)
+                  g.get('departure_day', ''), g.get('departure_time', ''), g.get('company', ''), fill_c, font_c,
+                  photo_fs_path=_photo_fs_path(g.get('photo')))
         row += 1
 
     widths = {'A': 26, 'B': 8, 'C': 10, 'D': 16, 'E': 14, 'F': 12, 'G': 16, 'H': 14, 'I': 10}
@@ -431,21 +414,14 @@ def build_workbook(data):
     _set(fb, f'A{row12}', 'Food & Beverage Performance', SECTION_FONT, GREEN_FILL, CENTER, _border(MEDIUM, MEDIUM, None, THIN))
 
     row13 = row12 + 1
-    perf_headers = [('A', 'Outlet'), ('B', 'Revenue'), ('C', 'G\u0130H'),
-                    ('D', 'External guests'), ('E', 'Special promotions'), ('G', 'External guests')]
-    for col, label in perf_headers:
-        span = None
-        if col == 'E':
-            span = 'F'
-        if span:
-            _merge(fb, f'{col}{row13}:{span}{row13}')
-        b = _border(THIN if col != 'A' else MEDIUM, MEDIUM if col == 'G' else THIN, THIN, THIN)
-        _set(fb, f'{col}{row13}', label, TABLE_HEADER_FONT, None, CENTER, b)
-        if span:
-            _set(fb, f'{span}{row13}', None, None, None, None, b)
-    _merge(fb, f'G{row13}:I{row13}')
-    for c in 'HI':
-        _set(fb, f'{c}{row13}', None, None, None, None, _border(THIN, MEDIUM, THIN, THIN))
+    _set(fb, f'A{row13}', 'Outlet', TABLE_HEADER_FONT, None, CENTER, _border(MEDIUM, THIN, THIN, THIN))
+    _set(fb, f'B{row13}', 'Revenue', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(fb, f'C{row13}', 'G\u0130H', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _set(fb, f'D{row13}', 'External guests', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, THIN, THIN))
+    _merge(fb, f'E{row13}:I{row13}')
+    _set(fb, f'E{row13}', 'Special promotions', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, THIN, THIN))
+    for c in 'FGHI':
+        _set(fb, f'{c}{row13}', None, None, None, None, _border(THIN, MEDIUM if c == 'I' else THIN, THIN, THIN))
 
     prow = row13 + 1
     for perf in data.get('fb_performance', []):
@@ -454,12 +430,9 @@ def build_workbook(data):
         _set(fb, f'B{prow}', perf.get('revenue', None), DATA_FONT, GREY_FILL, Alignment(horizontal='right'), b, numfmt='#,##0.00')
         _set(fb, f'C{prow}', perf.get('gih', None), DATA_FONT, GREY_FILL, Alignment(horizontal='right'), b)
         _set(fb, f'D{prow}', perf.get('external_guests', None), DATA_FONT, GREY_FILL, CENTER, b)
-        _merge(fb, f'E{prow}:F{prow}')
-        _set(fb, f'E{prow}', perf.get('special_promotions', ''), DATA_FONT, None, CENTER, b)
-        _set(fb, f'F{prow}', None, DATA_FONT, None, CENTER, b)
-        _merge(fb, f'G{prow}:I{prow}')
-        _set(fb, f'G{prow}', perf.get('external_guests_2', ''), DATA_FONT, None, CENTER, b)
-        for c in 'HI':
+        _merge(fb, f'E{prow}:I{prow}')
+        _set(fb, f'E{prow}', perf.get('special_promotions', ''), DATA_FONT, None, Alignment(horizontal='left', vertical='center', wrap_text=True), b)
+        for c in 'FGHI':
             _set(fb, f'{c}{prow}', None, DATA_FONT, None, CENTER, b)
         prow += 1
 

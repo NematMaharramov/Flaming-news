@@ -57,7 +57,7 @@ def parse_forecast(file_stream):
          deduct_group, occ_pct, room_revenue, avg_rate, dep_rooms) = m.groups()
         days.append({
             'date': _to_ddmmyyyy(date),
-            'occupancy_pct': round(float(occ_pct) / 100, 4),
+            'occupancy_pct': f'{occ_pct}%',
             'rooms_occupied': int(total_occ),
             'adr': float(avg_rate),
             'arrivals': int(arr_rooms),

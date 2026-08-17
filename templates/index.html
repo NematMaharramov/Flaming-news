@@ -59,10 +59,11 @@
   .goals-block .label { background:var(--grey); font-weight:normal; }
   .note { font-size:11px; color:#888; padding:6px 10px; }
   .cell.needs-review { background:#fff3b0 !important; outline:1px solid #e0a800; }
-  .photo-cell { text-align:center; }
-  .photo-thumb { width:36px; height:36px; border-radius:50%; object-fit:cover; display:block; margin:0 auto 2px; cursor:pointer; border:1px solid #bbb; }
-  .photo-add-btn { width:36px; height:36px; border-radius:50%; border:1px dashed #999; background:#f4f4f4; cursor:pointer; font-size:16px; color:#888; display:block; margin:0 auto; }
-  .photo-change-link { font-size:10px; color:#4472C4; cursor:pointer; text-decoration:underline; display:block; }
+  .guest-cell-wrap { display:flex; align-items:center; gap:3px; width:100%; }
+  .guest-name-input { flex:1; min-width:0; }
+  .photo-thumb-small { width:18px; height:18px; border-radius:50%; object-fit:cover; cursor:pointer; flex-shrink:0; border:1px solid #bbb; }
+  .photo-icon-btn { width:13px; height:13px; flex-shrink:0; opacity:.22; cursor:pointer; border:none; background:transparent; font-size:10px; line-height:1; padding:0; }
+  .photo-icon-btn:hover { opacity:.8; }
   .crop-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; display:flex; align-items:center; justify-content:center; }
   .crop-box { background:#fff; border-radius:8px; padding:16px; width:340px; text-align:center; }
   .crop-viewport { width:260px; height:260px; margin:12px auto; overflow:hidden; position:relative; border-radius:6px; background:#222; cursor:grab; touch-action:none; }
@@ -165,8 +166,8 @@
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">VIP Arrivals</td></tr>
     <tr class="thdr">
-      <td style="width:18%;">Guest</td><td style="width:6%;">Code</td><td style="width:7%;">Room</td>
-      <td style="width:7%;">ETA</td><td style="width:7%;">Photo</td><td colspan="2" style="width:22%;">Remarks</td><td colspan="2">Company</td>
+      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
+      <td style="width:8%;">ETA</td><td colspan="2" style="width:22%;">Remarks</td><td colspan="3">Company</td>
     </tr>
     <tbody id="vipArrivalsBody"></tbody>
   </table>
@@ -181,8 +182,8 @@
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">VIP In-House Guests</td></tr>
     <tr class="thdr">
-      <td style="width:18%;">Guest</td><td style="width:6%;">Code</td><td style="width:7%;">Room</td>
-      <td style="width:9%;">Departure day</td><td style="width:7%;">Photo</td><td colspan="2" style="width:18%;">Remarks</td><td colspan="2">Company</td>
+      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
+      <td style="width:10%;">Departure day</td><td colspan="2" style="width:18%;">Remarks</td><td colspan="3">Company</td>
     </tr>
     <tbody id="vipInhouseBody"></tbody>
   </table>
@@ -244,9 +245,8 @@
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">Food &amp; Beverage Performance</td></tr>
     <tr class="thdr">
-      <td style="width:16%;">Outlet</td><td style="width:12%;">Revenue</td><td style="width:8%;">GİH</td>
-      <td style="width:12%;">External guests</td><td colspan="2" style="width:16%;">Special promotions</td>
-      <td colspan="3">External guests</td>
+      <td style="width:18%;">Outlet</td><td style="width:14%;">Revenue</td><td style="width:9%;">GİH</td>
+      <td style="width:14%;">External guests</td><td colspan="5" style="width:45%;">Special promotions</td>
     </tr>
     <tbody id="fbPerfBody"></tbody>
   </table>
@@ -459,57 +459,61 @@ document.getElementById('addInspectionBtn').addEventListener('click', ()=>{
 });
 
 // ---------- VIP tables ----------
-function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, thirdKind, hasPhoto) {
+function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, thirdKind) {
   const body = document.getElementById(bodyId);
   body.innerHTML = '';
   (STATE[listKey]||[]).forEach((row,i)=>{
     const tr = document.createElement('tr');
-    tr.appendChild(td(cellInput(`${listKey}.${i}.guest`, row.guest)));
+    tr.appendChild(td(guestCell(listKey, i, row.guest, row.photo)));
     tr.appendChild(td(codeSelect(`${listKey}.${i}.code`, row.code)));
     tr.appendChild(td(cellInput(`${listKey}.${i}.room`, row.room)));
     tr.appendChild(td(cellInput(`${listKey}.${i}.${dateFieldKey}`, row[dateFieldKey], {kind:dateKind})));
-    if (hasPhoto) {
-      tr.appendChild(td(photoCell(listKey, i, row.photo), {cls:'photo-cell'}));
-    }
     tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey], {kind:thirdKind, needsReview: thirdFieldKey === 'remarks' && !!row.remarks_needs_review}), {colspan:2}));
     tr.appendChild(td(cellInput(`${listKey}.${i}.company`, row.company), {colspan:2}));
-    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind,hasPhoto); }), {cls:'row-actions'}));
+    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind); }), {cls:'row-actions'}));
     body.appendChild(tr);
   });
 }
-function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks','time',null,true); }
-function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks','date',null,true); }
-function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time','date','time',false); }
+function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks','time',null); }
+function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks','date',null); }
+function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time','date','time'); }
 
-// ---------- Photo: thumbnail cell + crop modal ----------
-function photoCell(listKey, idx, photoUrl) {
+// ---------- Guest cell: name + photo, combined in one cell ----------
+// No photo -> nothing shown but the name input (no placeholder, no extra
+// height). A tiny, low-opacity camera icon sits inline so a photo can
+// still be added without visually growing the row.
+function guestCell(listKey, idx, guestValue, photoUrl) {
   const wrap = document.createElement('div');
+  wrap.className = 'guest-cell-wrap';
+
   const fileInput = document.createElement('input');
   fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
   fileInput.addEventListener('change', () => {
     if (fileInput.files[0]) openCropModal(fileInput.files[0], (blob) => uploadPhoto(blob, listKey, idx));
     fileInput.value = '';
   });
+
   if (photoUrl) {
     const img = document.createElement('img');
-    img.className = 'photo-thumb'; img.src = photoUrl;
+    img.className = 'photo-thumb-small'; img.src = photoUrl;
+    img.title = 'Şəkli dəyiş';
     img.addEventListener('click', () => fileInput.click());
     wrap.appendChild(img);
-    const changeLink = document.createElement('span');
-    changeLink.className = 'photo-change-link'; changeLink.textContent = 'dəyiş';
-    changeLink.addEventListener('click', () => fileInput.click());
-    wrap.appendChild(changeLink);
   } else {
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'photo-add-btn'; btn.textContent = '+';
+    btn.type = 'button'; btn.className = 'photo-icon-btn'; btn.textContent = '📷';
     btn.title = 'Şəkil əlavə et';
     btn.addEventListener('click', () => fileInput.click());
     wrap.appendChild(btn);
   }
+
+  const nameInput = cellInput(`${listKey}.${idx}.guest`, guestValue, {cls:'guest-name-input'});
+  wrap.appendChild(nameInput);
   wrap.appendChild(fileInput);
   return wrap;
 }
 
+// ---------- Crop modal (guestCell() above handles the trigger/thumbnail) ----------
 let _cropState = null;
 function openCropModal(file, onDone) {
   const reader = new FileReader();
@@ -590,7 +594,9 @@ async function uploadPhoto(blob, listKey, idx) {
     const j = await res.json();
     if (j.status !== 'ok') { toast(j.message || 'Şəkil yüklənmədi', true); return; }
     STATE[listKey][idx].photo = j.url;
-    if (listKey === 'vip_arrivals') renderArrivals(); else if (listKey === 'vip_inhouse') renderInhouse();
+    if (listKey === 'vip_arrivals') renderArrivals();
+    else if (listKey === 'vip_inhouse') renderInhouse();
+    else if (listKey === 'vip_departures') renderDepartures();
     toast('Şəkil əlavə olundu.');
   } catch(e) {
     toast('Şəkil yüklənmədi', true);
@@ -604,7 +610,7 @@ document.getElementById('addInhouseBtn').addEventListener('click', ()=>{
   STATE.vip_inhouse = STATE.vip_inhouse||[]; STATE.vip_inhouse.push({guest:'',code:'',room:'',departure_day:'',photo:'',remarks:'',company:''}); renderInhouse();
 });
 document.getElementById('addDepartureBtn').addEventListener('click', ()=>{
-  STATE.vip_departures = STATE.vip_departures||[]; STATE.vip_departures.push({guest:'',code:'',room:'',departure_day:'',departure_time:'',company:''}); renderDepartures();
+  STATE.vip_departures = STATE.vip_departures||[]; STATE.vip_departures.push({guest:'',code:'',room:'',departure_day:'',photo:'',departure_time:'',company:''}); renderDepartures();
 });
 
 // ---------- Events ----------
@@ -658,15 +664,14 @@ function renderFbPerf() {
     tr.appendChild(td(cellInput(`fb_performance.${i}.revenue`, row.revenue)));
     tr.appendChild(td(cellInput(`fb_performance.${i}.gih`, row.gih)));
     tr.appendChild(td(cellInput(`fb_performance.${i}.external_guests`, row.external_guests)));
-    tr.appendChild(td(cellInput(`fb_performance.${i}.special_promotions`, row.special_promotions), {colspan:2}));
-    tr.appendChild(td(cellInput(`fb_performance.${i}.external_guests_2`, row.external_guests_2), {colspan:2}));
+    tr.appendChild(td(cellInput(`fb_performance.${i}.special_promotions`, row.special_promotions, {cls:'left-align'}), {colspan:5}));
     tr.appendChild(td(removeBtn(()=>{ STATE.fb_performance.splice(i,1); renderFbPerf(); }), {cls:'row-actions'}));
     body.appendChild(tr);
   });
 }
 document.getElementById('addFbBtn').addEventListener('click', ()=>{
   STATE.fb_performance = STATE.fb_performance||[];
-  STATE.fb_performance.push({outlet:'',revenue:'',gih:'',external_guests:'',special_promotions:'',external_guests_2:''});
+  STATE.fb_performance.push({outlet:'',revenue:'',gih:'',external_guests:'',special_promotions:''});
   renderFbPerf();
 });
 
@@ -790,7 +795,7 @@ document.getElementById('fbUploadBtn').addEventListener('click', ()=>
         if (rec.gih!=null) existing.gih = rec.gih;
         if (rec.external_guests!=null) existing.external_guests = rec.external_guests;
       } else {
-        STATE.fb_performance.push({outlet:rec.outlet, revenue:rec.revenue, gih:rec.gih, external_guests:rec.external_guests, special_promotions:'', external_guests_2:''});
+        STATE.fb_performance.push({outlet:rec.outlet, revenue:rec.revenue, gih:rec.gih, external_guests:rec.external_guests, special_promotions:''});
       }
     });
     renderFbPerf();
