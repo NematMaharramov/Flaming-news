@@ -471,7 +471,7 @@ function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, 
     if (hasPhoto) {
       tr.appendChild(td(photoCell(listKey, i, row.photo), {cls:'photo-cell'}));
     }
-    tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey], {kind:thirdKind, needsReview: !!row.remarks_needs_review}), {colspan:2}));
+    tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey], {kind:thirdKind, needsReview: thirdFieldKey === 'remarks' && !!row.remarks_needs_review}), {colspan:2}));
     tr.appendChild(td(cellInput(`${listKey}.${i}.company`, row.company), {colspan:2}));
     tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind,hasPhoto); }), {cls:'row-actions'}));
     body.appendChild(tr);

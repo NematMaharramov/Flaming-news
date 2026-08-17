@@ -104,8 +104,8 @@ def parse_in_house(file_stream):
                 'room': room.split(',')[0].strip(),
                 'name': name.strip(),
                 'company': company,
-                'arr_date': arr,
-                'dep_date': dep,
+                'arr_date': _to_ddmmyyyy(arr),
+                'dep_date': _to_ddmmyyyy(dep),
                 'vip_code': None,
                 'raw_specials': [],
             }
@@ -160,7 +160,7 @@ def parse_arrivals(file_stream):
                 'room': room_val,
                 'name': name.strip(),
                 'company': company,
-                'arr_date': arr,
+                'arr_date': _to_ddmmyyyy(arr),
                 'eta': '',
                 'vip_code': None,
                 'raw_specials': [],
@@ -235,7 +235,7 @@ def parse_departures(file_stream):
                 'name': name,
                 'company': company,
                 'vip_code': vip_code,
-                'dep_date': dep,
+                'dep_date': _to_ddmmyyyy(dep),
                 'dep_time': dep_time,
                 'raw_specials': [],
             }
