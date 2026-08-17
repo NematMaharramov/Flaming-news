@@ -5,11 +5,13 @@ colours and fonts exactly (extracted directly from the source .xlsx), filled
 in with the day's data. No VIP Code Legend section (removed per requirement).
 """
 import io
+import os
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
 import rules
+import data_store
 
 # ---------------------------------------------------------------------------
 # Colours / styles lifted directly from the source template
@@ -69,8 +71,13 @@ def _merge(ws, rng):
     ws.merge_cells(rng)
 
 
-def _vip_row(ws, row, guest, code, room, col_d_value, remark_or_time, company, fill_color=None, font_color=None):
-    """One VIP table row: Guest | Code | Room | D | Remarks(E:F) | Company(G:I)."""
+def _vip_row(ws, row, guest, code, room, col_d_value, remark_or_time, company,
+             fill_color=None, font_color=None, photo_fs_path=None, has_photo_col=False):
+    """
+    One VIP table row.
+    Without photo column: Guest | Code | Room | D | Remarks/Time(E:F) | Company(G:I)
+    With photo column:    Guest | Code | Room | D | Photo(E) | Remarks(F:G) | Company(H:I)
+    """
     b = _border(THIN, THIN, THIN, THIN)
     _set(ws, f'A{row}', guest, DATA_FONT, None, CENTER, b)
     code_cell = _set(ws, f'B{row}', code, Font(name=FONT_NAME, size=12, bold=True), None, CENTER_NOWRAP, b)
@@ -79,28 +86,86 @@ def _vip_row(ws, row, guest, code, room, col_d_value, remark_or_time, company, f
         code_cell.font = Font(name=FONT_NAME, size=12, bold=True, color=font_color or BLACK)
     _set(ws, f'C{row}', room, DATA_FONT, None, CENTER, b)
     _set(ws, f'D{row}', col_d_value, DATA_FONT, None, CENTER, b)
-    _merge(ws, f'E{row}:F{row}')
-    _set(ws, f'E{row}', remark_or_time, DATA_FONT, None, CENTER, b)
-    _set(ws, f'F{row}', None, DATA_FONT, None, CENTER, b)
-    _merge(ws, f'G{row}:I{row}')
-    _set(ws, f'G{row}', company, DATA_FONT, None, CENTER, b)
-    for c in 'HI':
-        _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
+
+    if has_photo_col:
+        _set(ws, f'E{row}', None, DATA_FONT, None, CENTER, b)
+        if photo_fs_path:
+            _embed_photo(ws, f'E{row}', photo_fs_path)
+        _merge(ws, f'F{row}:G{row}')
+        _set(ws, f'F{row}', remark_or_time, DATA_FONT, None, CENTER, b)
+        _set(ws, f'G{row}', None, DATA_FONT, None, CENTER, b)
+        _merge(ws, f'H{row}:I{row}')
+        _set(ws, f'H{row}', company, DATA_FONT, None, CENTER, b)
+        _set(ws, f'I{row}', None, DATA_FONT, None, CENTER, b)
+        ws.row_dimensions[row].height = 32  # fixed row height — same for every guest, photo or not
+    else:
+        _merge(ws, f'E{row}:F{row}')
+        _set(ws, f'E{row}', remark_or_time, DATA_FONT, None, CENTER, b)
+        _set(ws, f'F{row}', None, DATA_FONT, None, CENTER, b)
+        _merge(ws, f'G{row}:I{row}')
+        _set(ws, f'G{row}', company, DATA_FONT, None, CENTER, b)
+        for c in 'HI':
+            _set(ws, f'{c}{row}', None, DATA_FONT, None, CENTER, b)
 
 
-def _vip_table_header(ws, row, d_label, e_label, headerspan_top=True):
+def _embed_photo(ws, coord, fs_path):
+    """Insert a fixed-size (so every row stays the same height) guest photo.
+    Uses an explicit OneCellAnchor with a fixed extent — setting
+    Image.width/height alone does not reliably persist through save/reload
+    in openpyxl, since add_image() can re-derive the size from the source
+    file's native dimensions unless the anchor's extent is set explicitly."""
+    try:
+        from openpyxl.drawing.image import Image as XLImage
+        from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
+        from openpyxl.drawing.xdr import XDRPositiveSize2D
+        from openpyxl.utils.units import pixels_to_EMU
+        from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+
+        col_letter, row_num = coordinate_from_string(coord)
+        col_idx = column_index_from_string(col_letter) - 1  # 0-based
+        row_idx = row_num - 1  # 0-based
+
+        img = XLImage(fs_path)
+        size = XDRPositiveSize2D(pixels_to_EMU(28), pixels_to_EMU(28))
+        marker = AnchorMarker(col=col_idx, colOff=pixels_to_EMU(2), row=row_idx, rowOff=pixels_to_EMU(2))
+        img.anchor = OneCellAnchor(_from=marker, ext=size)
+        ws.add_image(img)
+    except Exception:
+        pass  # missing/corrupt photo file — don't fail the whole export over it
+
+
+def _photo_fs_path(photo_url):
+    """'/photos/2026-08-16/abcd.jpg' -> absolute filesystem path, or None."""
+    if not photo_url:
+        return None
+    rel = photo_url.lstrip('/')  # 'photos/2026-08-16/abcd.jpg'
+    fs_path = os.path.join(data_store.DATA_DIR, rel)
+    return fs_path if os.path.isfile(fs_path) else None
+
+
+def _vip_table_header(ws, row, d_label, e_label, headerspan_top=True, has_photo_col=False):
     b = _border(THIN, THIN, MEDIUM if headerspan_top else THIN, MEDIUM)
     _set(ws, f'A{row}', 'Guest', TABLE_HEADER_FONT, None, CENTER, _border(MEDIUM, THIN, MEDIUM, MEDIUM))
     _set(ws, f'B{row}', 'Code', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
     _set(ws, f'C{row}', 'Room', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
     _set(ws, f'D{row}', d_label, TABLE_HEADER_FONT, GREY_FILL if d_label != 'ETA' else None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-    _merge(ws, f'E{row}:F{row}')
-    _set(ws, f'E{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
-    _set(ws, f'F{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
-    _merge(ws, f'G{row}:I{row}')
-    _set(ws, f'G{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
-    for c in 'HI':
-        _set(ws, f'{c}{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+
+    if has_photo_col:
+        _set(ws, f'E{row}', 'Photo', TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+        _merge(ws, f'F{row}:G{row}')
+        _set(ws, f'F{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+        _set(ws, f'G{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
+        _merge(ws, f'H{row}:I{row}')
+        _set(ws, f'H{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+        _set(ws, f'I{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+    else:
+        _merge(ws, f'E{row}:F{row}')
+        _set(ws, f'E{row}', e_label, TABLE_HEADER_FONT, None, CENTER, _border(THIN, THIN, MEDIUM, MEDIUM))
+        _set(ws, f'F{row}', None, None, None, None, _border(THIN, THIN, MEDIUM, MEDIUM))
+        _merge(ws, f'G{row}:I{row}')
+        _set(ws, f'G{row}', 'Company', TABLE_HEADER_FONT, None, CENTER, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
+        for c in 'HI':
+            _set(ws, f'{c}{row}', None, None, None, None, _border(THIN, MEDIUM, MEDIUM, MEDIUM))
 
 
 def _section_header(ws, row, text, span_end='I', full_border=True):
@@ -245,24 +310,26 @@ def build_workbook(data):
     # ---- VIP Arrivals ----
     _section_header(ws, row, 'VIP Arrivals')
     row += 1
-    _vip_table_header(ws, row, 'ETA', 'Remarks')
+    _vip_table_header(ws, row, 'ETA', 'Remarks', has_photo_col=True)
     row += 1
     for g in data.get('vip_arrivals', []):
         fill_c, font_c = rules.color_for_code(g.get('code'))
         _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
-                  g.get('eta', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c)
+                  g.get('eta', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c,
+                  photo_fs_path=_photo_fs_path(g.get('photo')), has_photo_col=True)
         row += 1
     row += 1
 
     # ---- VIP In-House Guests ----
     _section_header(ws, row, 'VIP In-House Guests')
     row += 1
-    _vip_table_header(ws, row, 'Departure day', 'Remarks')
+    _vip_table_header(ws, row, 'Departure day', 'Remarks', has_photo_col=True)
     row += 1
     for g in data.get('vip_inhouse', []):
         fill_c, font_c = rules.color_for_code(g.get('code'))
         _vip_row(ws, row, g.get('guest', ''), g.get('code', ''), g.get('room', ''),
-                  g.get('departure_day', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c)
+                  g.get('departure_day', ''), g.get('remarks', ''), g.get('company', ''), fill_c, font_c,
+                  photo_fs_path=_photo_fs_path(g.get('photo')), has_photo_col=True)
         row += 1
     row += 1
 

@@ -1,8 +1,10 @@
 import io
+import os
 import json
+import uuid
 from datetime import date
 
-from flask import Flask, request, render_template, send_file, jsonify
+from flask import Flask, request, render_template, send_file, send_from_directory, jsonify
 
 import parsers
 import rules
@@ -11,6 +13,9 @@ import data_store
 
 app = Flask(__name__)
 app.secret_key = 'flaming-news-secret'  # change in production / set via env var
+
+PHOTOS_DIR = os.path.join(data_store.DATA_DIR, 'photos')
+os.makedirs(PHOTOS_DIR, exist_ok=True)
 
 
 def _today_iso():
@@ -90,7 +95,9 @@ def _upload_vip_list(file_key, parse_fn, target_key, extra=None):
                 'eta': r.get('eta', ''),
                 'departure_day': r.get('departure_day', r.get('dep_date', '')),
                 'departure_time': r.get('dep_time', ''),
+                'photo': '',
                 'remarks': r.get('remark', ''),
+                'remarks_needs_review': r.get('remarks_needs_review', False),
                 'company': r.get('company', ''),
             })
         return jsonify({'status': 'ok', 'target': target_key, 'records': result})
@@ -108,6 +115,30 @@ def api_upload_fb():
         return jsonify({'status': 'ok', 'target': 'fb_performance', 'records': records})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
+
+
+@app.route('/api/upload/photo', methods=['POST'])
+def api_upload_photo():
+    """
+    Accepts an already-cropped square image (client crops before upload —
+    see the crop modal in index.html) and stores it under
+    data/photos/<iso_date>/<uuid>.jpg. Returns a URL the front-end can show
+    immediately and that gets saved into the guest record's 'photo' field.
+    """
+    f = request.files.get('photo')
+    iso_date = request.form.get('iso_date') or date.today().isoformat()
+    if not f or not f.filename:
+        return jsonify({'status': 'error', 'message': 'No photo uploaded'}), 400
+    day_dir = os.path.join(PHOTOS_DIR, iso_date)
+    os.makedirs(day_dir, exist_ok=True)
+    filename = f'{uuid.uuid4().hex}.jpg'
+    f.save(os.path.join(day_dir, filename))
+    return jsonify({'status': 'ok', 'url': f'/photos/{iso_date}/{filename}'})
+
+
+@app.route('/photos/<path:subpath>')
+def serve_photo(subpath):
+    return send_from_directory(PHOTOS_DIR, subpath)
 
 
 @app.route('/api/export', methods=['GET'])

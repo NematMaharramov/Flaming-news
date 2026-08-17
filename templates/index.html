@@ -59,6 +59,15 @@
   .goals-block .label { background:var(--grey); font-weight:normal; }
   .note { font-size:11px; color:#888; padding:6px 10px; }
   .cell.needs-review { background:#fff3b0 !important; outline:1px solid #e0a800; }
+  .photo-cell { text-align:center; }
+  .photo-thumb { width:36px; height:36px; border-radius:50%; object-fit:cover; display:block; margin:0 auto 2px; cursor:pointer; border:1px solid #bbb; }
+  .photo-add-btn { width:36px; height:36px; border-radius:50%; border:1px dashed #999; background:#f4f4f4; cursor:pointer; font-size:16px; color:#888; display:block; margin:0 auto; }
+  .photo-change-link { font-size:10px; color:#4472C4; cursor:pointer; text-decoration:underline; display:block; }
+  .crop-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; display:flex; align-items:center; justify-content:center; }
+  .crop-box { background:#fff; border-radius:8px; padding:16px; width:340px; text-align:center; }
+  .crop-viewport { width:260px; height:260px; margin:12px auto; overflow:hidden; position:relative; border-radius:6px; background:#222; cursor:grab; touch-action:none; }
+  .crop-viewport img { position:absolute; top:0; left:0; user-select:none; -webkit-user-drag:none; }
+  .crop-controls { display:flex; gap:8px; justify-content:center; margin-top:10px; }
   .toast { position:fixed; bottom:20px; right:20px; background:#2e7d32; color:#fff; padding:10px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.2); display:none; z-index:100; }
   .toast.error { background:#c0392b; }
 </style>
@@ -156,8 +165,8 @@
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">VIP Arrivals</td></tr>
     <tr class="thdr">
-      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
-      <td style="width:8%;">ETA</td><td colspan="2" style="width:22%;">Remarks</td><td colspan="3">Company</td>
+      <td style="width:18%;">Guest</td><td style="width:6%;">Code</td><td style="width:7%;">Room</td>
+      <td style="width:7%;">ETA</td><td style="width:7%;">Photo</td><td colspan="2" style="width:22%;">Remarks</td><td colspan="2">Company</td>
     </tr>
     <tbody id="vipArrivalsBody"></tbody>
   </table>
@@ -172,8 +181,8 @@
   <table class="grid" style="margin-top:8px;">
     <tr class="section-row"><td colspan="9">VIP In-House Guests</td></tr>
     <tr class="thdr">
-      <td style="width:20%;">Guest</td><td style="width:7%;">Code</td><td style="width:8%;">Room</td>
-      <td style="width:10%;">Departure day</td><td colspan="2" style="width:20%;">Remarks</td><td colspan="3">Company</td>
+      <td style="width:18%;">Guest</td><td style="width:6%;">Code</td><td style="width:7%;">Room</td>
+      <td style="width:9%;">Departure day</td><td style="width:7%;">Photo</td><td colspan="2" style="width:18%;">Remarks</td><td colspan="2">Company</td>
     </tr>
     <tbody id="vipInhouseBody"></tbody>
   </table>
@@ -252,6 +261,20 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="crop-overlay" id="cropOverlay" style="display:none;">
+  <div class="crop-box">
+    <strong>Şəkli kadrla</strong>
+    <div class="crop-viewport" id="cropViewport">
+      <img id="cropImage" src="" alt="">
+    </div>
+    <div style="font-size:11px;color:#888;">Sürüşdürmək üçün sürüklə, yaxınlaşdırmaq üçün skroll et</div>
+    <div class="crop-controls">
+      <button class="btn secondary small" id="cropCancelBtn">Ləğv et</button>
+      <button class="btn small" id="cropConfirmBtn">İstifadə et</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const VIP_CODES = ['T3','T4','T5','T6','SA','V1'];
@@ -436,7 +459,7 @@ document.getElementById('addInspectionBtn').addEventListener('click', ()=>{
 });
 
 // ---------- VIP tables ----------
-function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, thirdKind) {
+function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, thirdKind, hasPhoto) {
   const body = document.getElementById(bodyId);
   body.innerHTML = '';
   (STATE[listKey]||[]).forEach((row,i)=>{
@@ -445,21 +468,140 @@ function renderVipTable(bodyId, listKey, dateFieldKey, thirdFieldKey, dateKind, 
     tr.appendChild(td(codeSelect(`${listKey}.${i}.code`, row.code)));
     tr.appendChild(td(cellInput(`${listKey}.${i}.room`, row.room)));
     tr.appendChild(td(cellInput(`${listKey}.${i}.${dateFieldKey}`, row[dateFieldKey], {kind:dateKind})));
+    if (hasPhoto) {
+      tr.appendChild(td(photoCell(listKey, i, row.photo), {cls:'photo-cell'}));
+    }
     tr.appendChild(td(cellInput(`${listKey}.${i}.${thirdFieldKey}`, row[thirdFieldKey], {kind:thirdKind, needsReview: !!row.remarks_needs_review}), {colspan:2}));
     tr.appendChild(td(cellInput(`${listKey}.${i}.company`, row.company), {colspan:2}));
-    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind); }), {cls:'row-actions'}));
+    tr.appendChild(td(removeBtn(()=>{ STATE[listKey].splice(i,1); renderVipTable(bodyId,listKey,dateFieldKey,thirdFieldKey,dateKind,thirdKind,hasPhoto); }), {cls:'row-actions'}));
     body.appendChild(tr);
   });
 }
-function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks','time',null); }
-function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks','date',null); }
-function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time','date','time'); }
+function renderArrivals(){ renderVipTable('vipArrivalsBody','vip_arrivals','eta','remarks','time',null,true); }
+function renderInhouse(){ renderVipTable('vipInhouseBody','vip_inhouse','departure_day','remarks','date',null,true); }
+function renderDepartures(){ renderVipTable('vipDeparturesBody','vip_departures','departure_day','departure_time','date','time',false); }
+
+// ---------- Photo: thumbnail cell + crop modal ----------
+function photoCell(listKey, idx, photoUrl) {
+  const wrap = document.createElement('div');
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) openCropModal(fileInput.files[0], (blob) => uploadPhoto(blob, listKey, idx));
+    fileInput.value = '';
+  });
+  if (photoUrl) {
+    const img = document.createElement('img');
+    img.className = 'photo-thumb'; img.src = photoUrl;
+    img.addEventListener('click', () => fileInput.click());
+    wrap.appendChild(img);
+    const changeLink = document.createElement('span');
+    changeLink.className = 'photo-change-link'; changeLink.textContent = 'dəyiş';
+    changeLink.addEventListener('click', () => fileInput.click());
+    wrap.appendChild(changeLink);
+  } else {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'photo-add-btn'; btn.textContent = '+';
+    btn.title = 'Şəkil əlavə et';
+    btn.addEventListener('click', () => fileInput.click());
+    wrap.appendChild(btn);
+  }
+  wrap.appendChild(fileInput);
+  return wrap;
+}
+
+let _cropState = null;
+function openCropModal(file, onDone) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const overlay = document.getElementById('cropOverlay');
+    const img = document.getElementById('cropImage');
+    img.src = reader.result;
+    overlay.style.display = 'flex';
+    img.onload = () => {
+      const vp = 260; // viewport size
+      const scale = Math.max(vp / img.naturalWidth, vp / img.naturalHeight);
+      _cropState = { scale, x:0, y:0, naturalW:img.naturalWidth, naturalH:img.naturalHeight, vp, onDone };
+      applyCropTransform();
+    };
+  };
+  reader.readAsDataURL(file);
+}
+function applyCropTransform() {
+  const img = document.getElementById('cropImage');
+  const s = _cropState;
+  img.style.width = (s.naturalW * s.scale) + 'px';
+  img.style.height = (s.naturalH * s.scale) + 'px';
+  img.style.transform = `translate(${s.x}px, ${s.y}px)`;
+}
+(function setupCropInteractions(){
+  const vp = document.getElementById('cropViewport');
+  let dragging = false, startX, startY, origX, origY;
+  vp.addEventListener('mousedown', (e) => {
+    if (!_cropState) return;
+    dragging = true; startX = e.clientX; startY = e.clientY; origX = _cropState.x; origY = _cropState.y;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging || !_cropState) return;
+    _cropState.x = origX + (e.clientX - startX);
+    _cropState.y = origY + (e.clientY - startY);
+    applyCropTransform();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  vp.addEventListener('wheel', (e) => {
+    if (!_cropState) return;
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1.08 : 0.93;
+    _cropState.scale = Math.max(0.05, _cropState.scale * delta);
+    applyCropTransform();
+  }, {passive:false});
+})();
+document.getElementById('cropCancelBtn').addEventListener('click', () => {
+  document.getElementById('cropOverlay').style.display = 'none';
+  _cropState = null;
+});
+document.getElementById('cropConfirmBtn').addEventListener('click', () => {
+  if (!_cropState) return;
+  const OUT = 240; // fixed square output — keeps every VIP row the same size
+  const canvas = document.createElement('canvas');
+  canvas.width = OUT; canvas.height = OUT;
+  const ctx = canvas.getContext('2d');
+  const img = document.getElementById('cropImage');
+  const s = _cropState;
+  // Map viewport-space crop (top-left corner of the vp×vp window, in the
+  // scaled image's coordinate space) back to source-image pixels.
+  const srcX = (-s.x) / s.scale;
+  const srcY = (-s.y) / s.scale;
+  const srcSize = s.vp / s.scale;
+  ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, OUT, OUT);
+  canvas.toBlob((blob) => {
+    document.getElementById('cropOverlay').style.display = 'none';
+    if (s.onDone) s.onDone(blob);
+    _cropState = null;
+  }, 'image/jpeg', 0.88);
+});
+
+async function uploadPhoto(blob, listKey, idx) {
+  const fd = new FormData();
+  fd.append('photo', blob, 'photo.jpg');
+  fd.append('iso_date', document.getElementById('dateInput').value);
+  try {
+    const res = await fetch('/api/upload/photo', {method:'POST', body: fd});
+    const j = await res.json();
+    if (j.status !== 'ok') { toast(j.message || 'Şəkil yüklənmədi', true); return; }
+    STATE[listKey][idx].photo = j.url;
+    if (listKey === 'vip_arrivals') renderArrivals(); else if (listKey === 'vip_inhouse') renderInhouse();
+    toast('Şəkil əlavə olundu.');
+  } catch(e) {
+    toast('Şəkil yüklənmədi', true);
+  }
+}
 
 document.getElementById('addArrivalBtn').addEventListener('click', ()=>{
-  STATE.vip_arrivals = STATE.vip_arrivals||[]; STATE.vip_arrivals.push({guest:'',code:'',room:'',eta:'',remarks:'',company:''}); renderArrivals();
+  STATE.vip_arrivals = STATE.vip_arrivals||[]; STATE.vip_arrivals.push({guest:'',code:'',room:'',eta:'',photo:'',remarks:'',company:''}); renderArrivals();
 });
 document.getElementById('addInhouseBtn').addEventListener('click', ()=>{
-  STATE.vip_inhouse = STATE.vip_inhouse||[]; STATE.vip_inhouse.push({guest:'',code:'',room:'',departure_day:'',remarks:'',company:''}); renderInhouse();
+  STATE.vip_inhouse = STATE.vip_inhouse||[]; STATE.vip_inhouse.push({guest:'',code:'',room:'',departure_day:'',photo:'',remarks:'',company:''}); renderInhouse();
 });
 document.getElementById('addDepartureBtn').addEventListener('click', ()=>{
   STATE.vip_departures = STATE.vip_departures||[]; STATE.vip_departures.push({guest:'',code:'',room:'',departure_day:'',departure_time:'',company:''}); renderDepartures();
