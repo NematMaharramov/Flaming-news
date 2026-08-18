@@ -35,10 +35,12 @@ def admin_page():
 def index():
     iso_date = request.args.get('date') or date.today().isoformat()
     data, carried, source_date = data_store.load_today_or_carry_forward(iso_date)
+    config = report_config.load_published()
     return render_template(
         'index.html',
         iso_date=iso_date,
         data_json=json.dumps(data, ensure_ascii=False),
+        config_json=json.dumps(config, ensure_ascii=False),
         carried=carried,
         source_date=source_date,
     )

@@ -42,9 +42,20 @@ def default_config():
     The factory-default configuration. static_defaults keys are dotted
     paths into a day's data dict (same shape as data_store.empty_day),
     applied only at day-creation time (see data_store.py).
+
+    sections: ordered list describing every repeating/table-like part of
+    the report. type='table' sections are fully driven by `columns` (the
+    HTML editor renders them generically — see static/report-render.js) so
+    an admin can add/remove/resize columns, or add/remove whole sections,
+    without touching application code. type='parallel_lines' is the
+    Birthday/Anniversary style (two free-text columns, no headers per
+    line). type='fixed' sections (forecast, the AM MOD/weather/goals
+    block) are NOT yet config-driven — their layout is still hardcoded in
+    the template; that's a larger follow-up since they're matrix-shaped
+    rather than repeating rows.
     """
     return {
-        'schema_version': 1,
+        'schema_version': 2,
         'updated_at': None,
         'static_defaults': {
             'fairmont_goals.ces_goal': 90,
@@ -58,29 +69,115 @@ def default_config():
             'high_pct': 100,
             'high_color': '#00B050',
         },
-        # Section order/visibility for Sheet 1 / Sheet 2 — placeholder for
-        # the dynamic-sections work (later part); today it just documents
-        # what exists so the admin UI has something real to list.
         'sections': [
-            {'id': 'forecast', 'sheet': 1, 'title': '7 Day Forecast', 'enabled': True},
-            {'id': 'am_pm_mod', 'sheet': 1, 'title': 'AM MOD / PM MOD / House Status / Weather / Enrollments', 'enabled': True},
-            {'id': 'goals', 'sheet': 1, 'title': 'Fairmont Baku 2026 Goals', 'enabled': True},
-            {'id': 'site_inspections', 'sheet': 1, 'title': 'Site Inspections', 'enabled': True},
-            {'id': 'vip_arrivals', 'sheet': 1, 'title': 'VIP Arrivals', 'enabled': True},
-            {'id': 'vip_inhouse', 'sheet': 1, 'title': 'VIP In-House Guests', 'enabled': True},
-            {'id': 'vip_departures', 'sheet': 1, 'title': 'VIP Departures', 'enabled': True},
-            {'id': 'events', 'sheet': 2, 'title': 'Events', 'enabled': True},
-            {'id': 'birthday_anniversary', 'sheet': 2, 'title': 'Birthday / Anniversary', 'enabled': True},
-            {'id': 'fb_performance', 'sheet': 2, 'title': 'Food & Beverage Performance', 'enabled': True},
+            {'id': 'forecast', 'sheet': 1, 'title': '7 Day Forecast', 'type': 'fixed', 'enabled': True, 'order': 1},
+            {'id': 'am_pm_mod', 'sheet': 1, 'title': 'AM MOD / PM MOD / House Status / Weather / Enrollments', 'type': 'fixed', 'enabled': True, 'order': 2},
+            {'id': 'goals', 'sheet': 1, 'title': 'Fairmont Baku 2026 Goals', 'type': 'fixed', 'enabled': True, 'order': 3},
+            {
+                'id': 'site_inspections', 'sheet': 1, 'title': 'Site Inspections', 'type': 'table',
+                'enabled': True, 'order': 4, 'data_key': 'site_inspections',
+                'columns': [
+                    {'key': 'time', 'label': 'Time', 'width_pct': 10, 'colspan': 1, 'kind': 'time'},
+                    {'key': 'guest', 'label': 'Guest', 'width_pct': 16, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'position_company', 'label': 'Position / Company', 'width_pct': 52, 'colspan': 5, 'kind': 'text'},
+                    {'key': 'sales_contact', 'label': 'Sales Contact', 'width_pct': 22, 'colspan': 2, 'kind': 'text'},
+                ],
+            },
+            {
+                'id': 'vip_arrivals', 'sheet': 1, 'title': 'VIP Arrivals', 'type': 'table',
+                'enabled': True, 'order': 5, 'data_key': 'vip_arrivals', 'vip_guest_row': True,
+                'columns': [
+                    {'key': 'guest', 'label': 'Guest', 'width_pct': 20, 'colspan': 1, 'kind': 'guest_with_photo'},
+                    {'key': 'code', 'label': 'Code', 'width_pct': 7, 'colspan': 1, 'kind': 'vip_code'},
+                    {'key': 'room', 'label': 'Room', 'width_pct': 8, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'eta', 'label': 'ETA', 'width_pct': 8, 'colspan': 1, 'kind': 'time'},
+                    {'key': 'remarks', 'label': 'Remarks', 'width_pct': 22, 'colspan': 2, 'kind': 'remarks'},
+                    {'key': 'company', 'label': 'Company', 'width_pct': 25, 'colspan': 2, 'kind': 'text'},
+                ],
+            },
+            {
+                'id': 'vip_inhouse', 'sheet': 1, 'title': 'VIP In-House Guests', 'type': 'table',
+                'enabled': True, 'order': 6, 'data_key': 'vip_inhouse', 'vip_guest_row': True,
+                'columns': [
+                    {'key': 'guest', 'label': 'Guest', 'width_pct': 20, 'colspan': 1, 'kind': 'guest_with_photo'},
+                    {'key': 'code', 'label': 'Code', 'width_pct': 7, 'colspan': 1, 'kind': 'vip_code'},
+                    {'key': 'room', 'label': 'Room', 'width_pct': 8, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'departure_day', 'label': 'Departure day', 'width_pct': 10, 'colspan': 1, 'kind': 'date'},
+                    {'key': 'remarks', 'label': 'Remarks', 'width_pct': 18, 'colspan': 2, 'kind': 'remarks'},
+                    {'key': 'company', 'label': 'Company', 'width_pct': 25, 'colspan': 2, 'kind': 'text'},
+                ],
+            },
+            {
+                'id': 'vip_departures', 'sheet': 1, 'title': 'VIP Departures', 'type': 'table',
+                'enabled': True, 'order': 7, 'data_key': 'vip_departures', 'vip_guest_row': True,
+                'columns': [
+                    {'key': 'guest', 'label': 'Guest', 'width_pct': 20, 'colspan': 1, 'kind': 'guest_with_photo'},
+                    {'key': 'code', 'label': 'Code', 'width_pct': 7, 'colspan': 1, 'kind': 'vip_code'},
+                    {'key': 'room', 'label': 'Room', 'width_pct': 8, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'departure_day', 'label': 'Departure day', 'width_pct': 10, 'colspan': 1, 'kind': 'date'},
+                    {'key': 'departure_time', 'label': 'Departure Time', 'width_pct': 16, 'colspan': 2, 'kind': 'time'},
+                    {'key': 'company', 'label': 'Company', 'width_pct': 25, 'colspan': 2, 'kind': 'text'},
+                ],
+            },
+            {
+                'id': 'events', 'sheet': 2, 'title': 'Events', 'type': 'table',
+                'enabled': True, 'order': 8, 'data_key': 'events',
+                'columns': [
+                    {'key': 'time', 'label': 'Time', 'width_pct': 10, 'colspan': 1, 'kind': 'time'},
+                    {'key': 'meeting_room', 'label': 'Meeting Room', 'width_pct': 18, 'colspan': 2, 'kind': 'text'},
+                    {'key': 'company', 'label': 'Company', 'width_pct': 36, 'colspan': 3, 'kind': 'text'},
+                    {'key': 'sales_contact', 'label': 'Sales contact', 'width_pct': 36, 'colspan': 3, 'kind': 'text'},
+                ],
+            },
+            {
+                'id': 'birthday_anniversary', 'sheet': 2, 'title': 'Birthday / Anniversary', 'type': 'parallel_lines',
+                'enabled': True, 'order': 9,
+                'left': {'label': 'Birthday', 'data_key': 'birthday', 'colspan': 3},
+                'right': {'label': 'Anniversary', 'data_key': 'anniversary', 'colspan': 6},
+            },
+            {
+                'id': 'fb_performance', 'sheet': 2, 'title': 'Food & Beverage Performance', 'type': 'table',
+                'enabled': True, 'order': 10, 'data_key': 'fb_performance',
+                'columns': [
+                    {'key': 'outlet', 'label': 'Outlet', 'width_pct': 18, 'colspan': 1, 'kind': 'text_left'},
+                    {'key': 'revenue', 'label': 'Revenue', 'width_pct': 14, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'gih', 'label': 'GİH', 'width_pct': 9, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'external_guests', 'label': 'External guests', 'width_pct': 14, 'colspan': 1, 'kind': 'text'},
+                    {'key': 'special_promotions', 'label': 'Special promotions', 'width_pct': 45, 'colspan': 5, 'kind': 'text_left'},
+                ],
+            },
         ],
     }
+
+
+def _migrate(cfg):
+    """Bring an older on-disk config up to the current schema_version.
+    v1 -> v2: 'sections' gained 'type'/'columns'/'order' for table-driven
+    rendering. Since v1 sections only had id/sheet/title/enabled, the
+    safest migration is to take the admin's enabled/disabled choices and
+    title edits (if any) and re-merge them onto the current factory
+    section definitions, rather than trying to guess columns for a v1
+    section that never had any."""
+    if cfg.get('schema_version', 1) >= 2:
+        return cfg
+    old_by_id = {s.get('id'): s for s in cfg.get('sections', [])}
+    fresh = default_config()
+    for s in fresh['sections']:
+        old = old_by_id.get(s['id'])
+        if old:
+            s['enabled'] = old.get('enabled', s['enabled'])
+            if old.get('title'):
+                s['title'] = old['title']
+    cfg['sections'] = fresh['sections']
+    cfg['schema_version'] = 2
+    return cfg
 
 
 def _read(path):
     if not os.path.exists(path):
         return None
     with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        return _migrate(json.load(f))
 
 
 def _write(path, data):
