@@ -51,10 +51,17 @@
   .code-SA { background:var(--sa-bg); color:var(--sa-fg); }
   .code-V1 { background:var(--v1-bg); color:var(--v1-fg); }
   .row-actions { text-align:center; width:34px; }
-  .add-row-bar { padding:8px; text-align:center; background:#fafafa; }
-  .upload-bar { display:flex; align-items:center; gap:8px; padding:8px; background:#f4f6f7; flex-wrap:wrap; font-size:12px; }
-  .upload-bar label { font-size:12px; color:#555; }
-  .upload-bar input[type=file] { font-size:12px; }
+  .add-row-bar { padding:3px 8px; text-align:center; background:transparent; border-bottom:1px solid #ddd; }
+  .add-row-bar .btn { opacity:.75; }
+  .add-row-bar .btn:hover { opacity:1; }
+  .import-panel { max-width:1150px; margin:14px auto 0; background:#fff; border:1px solid #bbb; border-radius:6px; padding:10px 14px; }
+  .import-panel-title { font-size:13px; font-weight:bold; color:#444; margin-bottom:8px; }
+  .import-grid { display:flex; gap:16px; flex-wrap:wrap; }
+  .import-item { flex:1; min-width:170px; }
+  .import-item label { display:block; font-size:11px; color:#666; margin-bottom:3px; }
+  .import-controls { display:flex; gap:6px; align-items:center; }
+  .import-controls input[type=file] { font-size:11px; max-width:120px; }
+  .import-item .note { padding:2px 0 0; display:block; }
   .goals-block td { background:var(--grey); text-align:center; font-size:13px; }
   .goals-block .label { background:var(--grey); font-weight:normal; }
   .note { font-size:11px; color:#888; padding:6px 10px; }
@@ -83,12 +90,59 @@
   <span class="status" id="statusLine"></span>
   <div class="spacer"></div>
   <button class="btn secondary" id="saveBtn">💾 Save</button>
-  <button class="btn" id="exportBtn">⬇️ Download Excel</button>
+  <button class="btn" id="exportBtn">⬇️ Excel</button>
+  <button class="btn" id="exportPdfBtn">⬇️ PDF</button>
 </div>
 
 {% if carried %}
 <div class="banner">Loaded {{ source_date }}'s data as a starting point — only today's changes need updating. VIP guest lists, site inspections and F&amp;B performance were cleared for fresh upload.</div>
 {% endif %}
+
+<div class="import-panel">
+  <div class="import-panel-title">📥 Report-ları import et</div>
+  <div class="import-grid">
+    <div class="import-item">
+      <label>7 Day Forecast (PDF)</label>
+      <div class="import-controls">
+        <input type="file" id="forecastFile" accept="application/pdf">
+        <button class="btn small" id="forecastUploadBtn">Yüklə</button>
+      </div>
+      <span class="note" id="forecastNote"></span>
+    </div>
+    <div class="import-item">
+      <label>Arrivals (PDF)</label>
+      <div class="import-controls">
+        <input type="file" id="arrivalsFile" accept="application/pdf">
+        <button class="btn small" id="arrivalsUploadBtn">Yüklə</button>
+      </div>
+      <span class="note" id="arrivalsNote"></span>
+    </div>
+    <div class="import-item">
+      <label>GIH / In-House (PDF)</label>
+      <div class="import-controls">
+        <input type="file" id="inhouseFile" accept="application/pdf">
+        <button class="btn small" id="inhouseUploadBtn">Yüklə</button>
+      </div>
+      <span class="note" id="inhouseNote"></span>
+    </div>
+    <div class="import-item">
+      <label>Departures (PDF)</label>
+      <div class="import-controls">
+        <input type="file" id="departuresFile" accept="application/pdf">
+        <button class="btn small" id="departuresUploadBtn">Yüklə</button>
+      </div>
+      <span class="note" id="departuresNote"></span>
+    </div>
+    <div class="import-item">
+      <label>Outlet Revenues / F&amp;B (.xlsx)</label>
+      <div class="import-controls">
+        <input type="file" id="fbFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <button class="btn small" id="fbUploadBtn">Yüklə</button>
+      </div>
+      <span class="note" id="fbNote"></span>
+    </div>
+  </div>
+</div>
 
 <div class="tabs">
   <div class="tab active" data-tab="sheet1">Sheet 1 — Accomodation</div>
@@ -104,15 +158,7 @@
     <tr class="section-row"><td colspan="9">7 Day Forecast</td></tr>
     <tr class="green-hdr" id="forecastDateRow"></tr>
     <tbody id="forecastMetrics"></tbody>
-  </table>
-  <div class="upload-bar">
-    <label>📄 Upload Forecast report (PDF):</label>
-    <input type="file" id="forecastFile" accept="application/pdf">
-    <button class="btn small" id="forecastUploadBtn">Process</button>
-    <span class="note" id="forecastNote"></span>
-  </div>
 
-  <table class="grid" style="margin-top:-1px;">
     <tr>
       <td class="left-align" style="background:var(--grey);font-weight:bold;width:11%;">AM MOD:<br><input class="cell" data-path="am_mod"></td>
       <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">House Status</td>
@@ -135,9 +181,7 @@
       <td>Comp./house use</td><td><input class="cell" data-path="house_status.comp_house_use"></td>
       <td></td><td colspan="2"></td><td colspan="2"></td>
     </tr>
-  </table>
 
-  <table class="grid" style="margin-top:-1px;">
     <tr class="section-row"><td colspan="9" style="background:#70AD47;">Fairmont Baku 2026 Goals</td></tr>
     <tr class="goals-block">
       <td class="label">CES Goal</td><td><input class="cell" data-path="fairmont_goals.ces_goal"></td>
@@ -151,9 +195,7 @@
       <td class="label">RPS YTD</td><td><input class="cell" data-path="fairmont_goals.rps_ytd"></td>
       <td colspan="2"></td>
     </tr>
-  </table>
 
-  <table class="grid" style="margin-top:-1px;">
     <tr class="section-row"><td colspan="9">Site Inspections</td></tr>
     <tr class="thdr">
       <td style="width:10%;">Time</td><td style="width:16%;">Guest</td>
@@ -171,12 +213,6 @@
     </tr>
     <tbody id="vipArrivalsBody"></tbody>
   </table>
-  <div class="upload-bar">
-    <label>📄 Upload Arrivals report (PDF):</label>
-    <input type="file" id="arrivalsFile" accept="application/pdf">
-    <button class="btn small" id="arrivalsUploadBtn">Process</button>
-    <span class="note" id="arrivalsNote"></span>
-  </div>
   <div class="add-row-bar"><button class="btn small secondary" id="addArrivalBtn">+ Add guest</button></div>
 
   <table class="grid" style="margin-top:8px;">
@@ -187,12 +223,6 @@
     </tr>
     <tbody id="vipInhouseBody"></tbody>
   </table>
-  <div class="upload-bar">
-    <label>📄 Upload GIH (Guests In-House) report (PDF):</label>
-    <input type="file" id="inhouseFile" accept="application/pdf">
-    <button class="btn small" id="inhouseUploadBtn">Process</button>
-    <span class="note" id="inhouseNote"></span>
-  </div>
   <div class="add-row-bar"><button class="btn small secondary" id="addInhouseBtn">+ Add guest</button></div>
 
   <table class="grid" style="margin-top:8px;">
@@ -203,12 +233,6 @@
     </tr>
     <tbody id="vipDeparturesBody"></tbody>
   </table>
-  <div class="upload-bar">
-    <label>📄 Upload Departure report (PDF):</label>
-    <input type="file" id="departuresFile" accept="application/pdf">
-    <button class="btn small" id="departuresUploadBtn">Process</button>
-    <span class="note" id="departuresNote"></span>
-  </div>
   <div class="add-row-bar"><button class="btn small secondary" id="addDepartureBtn">+ Add guest</button></div>
   <div class="note">VIP rules applied automatically: DV guests are excluded, Booking.com V1 guests are excluded, and codes are colour-coded (T3 black · T4 red · T5 white · T6 black · SA green · V1 red) to match the Excel.</div>
 </div>
@@ -219,9 +243,7 @@
     <tr class="title-row"><td colspan="9" id="titleCell2">FLAMING NEWS FOR ...</td></tr>
     <tr class="title-row"><td colspan="9" id="quoteCell2">Quote of the Day</td></tr>
     <tr class="title-row"><td colspan="9" style="font-size:16px;">FOOD &amp; BEVERAGE</td></tr>
-  </table>
 
-  <table class="grid" style="margin-top:-1px;">
     <tr class="section-row"><td colspan="9">Events</td></tr>
     <tr class="green-hdr">
       <td style="width:10%;">Time</td><td colspan="2" style="width:18%;">Meeting Room</td>
@@ -250,12 +272,6 @@
     </tr>
     <tbody id="fbPerfBody"></tbody>
   </table>
-  <div class="upload-bar">
-    <label>📄 Upload Outlet revenues report (.xlsx):</label>
-    <input type="file" id="fbFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-    <button class="btn small" id="fbUploadBtn">Process</button>
-    <span class="note" id="fbNote"></span>
-  </div>
   <div class="add-row-bar"><button class="btn small secondary" id="addFbBtn">+ Add outlet</button></div>
   <div class="note">F&amp;B figures are extracted automatically where the report layout allows; anything not confidently read is left blank for quick manual entry rather than guessed.</div>
 </div>
@@ -421,7 +437,7 @@ function renderForecast() {
   const fc = STATE.forecast;
   const dateRow = document.getElementById('forecastDateRow');
   dateRow.innerHTML = '';
-  const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight='bold'; dateRow.appendChild(lbl);
+  const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight='bold'; lbl.colSpan = 2; dateRow.appendChild(lbl);
   for (let i=0;i<7;i++) {
     dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i], {kind:'date'})));
   }
@@ -429,7 +445,7 @@ function renderForecast() {
   body.innerHTML = '';
   FORECAST_METRICS.forEach(([key,label])=>{
     const tr = document.createElement('tr');
-    const l = document.createElement('td'); l.textContent = label; l.style.background='var(--green)'; l.style.fontWeight='bold';
+    const l = document.createElement('td'); l.textContent = label; l.style.background='var(--green)'; l.style.fontWeight='bold'; l.colSpan = 2;
     tr.appendChild(l);
     for (let i=0;i<7;i++){
       tr.appendChild(td(cellInput(`forecast.${key}.${i}`, fc[key][i]), {cls:'val-cell'}));
@@ -741,6 +757,12 @@ document.getElementById('exportBtn').addEventListener('click', async ()=>{
   await saveState(true);
   const isoDate = document.getElementById('dateInput').value;
   window.location = '/api/export?date=' + encodeURIComponent(isoDate);
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
+  await saveState(true);
+  const isoDate = document.getElementById('dateInput').value;
+  window.location = '/api/export-pdf?date=' + encodeURIComponent(isoDate);
 });
 
 document.getElementById('dateInput').addEventListener('change', ()=>{

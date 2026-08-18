@@ -157,6 +157,45 @@ def api_export():
     )
 
 
+@app.route('/api/export-pdf', methods=['GET'])
+def api_export_pdf():
+    """
+    Renders the same saved data through templates/print.html — a static,
+    JS-free template mirroring the Excel design exactly — so the PDF always
+    looks identical regardless of who opens it or what's in their browser.
+    """
+    iso_date = request.args.get('date') or date.today().isoformat()
+    data = data_store.load_day(iso_date)
+    if data is None:
+        return jsonify({'status': 'error', 'message': 'No saved data for this date yet — save first.'}), 400
+
+    from datetime import datetime as _dt
+    try:
+        title_date = _dt.strptime(iso_date, '%Y-%m-%d').strftime('%d %B %Y')
+    except Exception:
+        title_date = iso_date
+
+    # Resolve each VIP guest's photo to an absolute filesystem path the
+    # print template can reference directly (file:// URLs), same mapping
+    # excel_writer uses for the Excel embed.
+    for list_key in ('vip_arrivals', 'vip_inhouse', 'vip_departures'):
+        for g in data.get(list_key, []):
+            g['photo_fs_path'] = excel_writer._photo_fs_path(g.get('photo'))
+
+    html_str = render_template('print.html', data=data, title_date=title_date)
+
+    import weasyprint
+    pdf_bytes = weasyprint.HTML(string=html_str, base_url=request.url_root).write_pdf()
+
+    filename = f'Flaming_News_{iso_date}.pdf'
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/pdf',
+    )
+
+
 @app.route('/health')
 def health():
     return {'status': 'ok'}

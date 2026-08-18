@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<title>Flaming News — {{ data.iso_date }}</title>
+<style>
+  @page { size: A4; margin: 10mm 8mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'DejaVu Sans', Calibri, Arial, sans-serif; margin:0; padding:0; color:#111; font-size:10px; }
+  table { border-collapse: collapse; width:100%; table-layout:fixed; page-break-inside: avoid; }
+  td, th { border:1px solid #666; padding:3px 4px; vertical-align:middle; overflow:hidden; }
+  .title-row td { background:#E7E6E6; color:#FF0000; font-weight:bold; font-size:15px; text-align:center; padding:6px; }
+  .section-row td { background:#92D050; font-weight:bold; font-size:11px; text-align:center; padding:4px; }
+  .section-row.dark td { background:#70AD47; }
+  .thdr td { background:transparent; font-weight:bold; text-align:center; font-size:9px; }
+  .green-hdr td { background:#92D050; font-weight:bold; text-align:center; font-size:9px; }
+  .val-cell { background:#E7E6E6; text-align:center; }
+  .label-cell { background:#E7E6E6; font-weight:bold; text-align:left; }
+  .center { text-align:center; }
+  .left { text-align:left; }
+  .goals-cell { background:#E7E6E6; text-align:center; }
+  .code-badge { font-weight:bold; text-align:center; padding:2px 4px; border-radius:2px; display:inline-block; min-width:22px; }
+  .review-flag { background:#fff3b0; }
+  .guest-cell { display:flex; align-items:center; gap:3px; }
+  .guest-photo { width:16px; height:16px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+  .sheet-page { page-break-after: always; }
+  .sheet-page:last-child { page-break-after: auto; }
+</style>
+</head>
+<body>
+
+{% macro code_style(code) %}
+  {%- if code == 'T3' -%}background:#000000;color:#ffffff;
+  {%- elif code == 'T4' -%}background:#FF0000;color:#000000;
+  {%- elif code == 'T5' -%}background:#ffffff;color:#000000;border:1px solid #999;
+  {%- elif code == 'T6' -%}background:#000000;color:#ffffff;
+  {%- elif code == 'SA' -%}background:#70AD47;color:#000000;
+  {%- elif code == 'V1' -%}background:#FF0000;color:#000000;
+  {%- endif -%}
+{% endmacro %}
+
+<!-- ================= SHEET 1: Accomodation ================= -->
+<div class="sheet-page">
+<table>
+  <tr class="title-row"><td colspan="9">FLAMING NEWS FOR {{ title_date }}</td></tr>
+  <tr class="title-row"><td colspan="9">Quote of the Day : &ldquo;{{ data.quote }}&rdquo;</td></tr>
+
+  <tr class="section-row"><td colspan="9">7 Day Forecast</td></tr>
+  <tr class="green-hdr">
+    <td>DATE:</td>
+    {% for d in data.forecast.dates %}<td>{{ d }}</td>{% endfor %}
+  </tr>
+  {% for label, key in [('Occupancy %','occupancy_pct'),('Rooms Occupied (excl house use & comp)','rooms_occupied'),('ADR','adr'),('Arrivals','arrivals'),('Departures','departures')] %}
+  <tr>
+    <td style="background:#92D050;font-weight:bold;">{{ label }}</td>
+    {% for v in data.forecast[key] %}<td class="val-cell">{{ v }}</td>{% endfor %}
+  </tr>
+  {% endfor %}
+
+  <tr>
+    <td class="label-cell" style="width:11%;">AM MOD:<br>{{ data.am_mod }}</td>
+    <td colspan="2" class="section-row" style="text-align:center;">House Status</td>
+    <td rowspan="4" class="val-cell">Weather Today<br><strong>{{ data.weather }}</strong></td>
+    <td colspan="2" class="section-row" style="text-align:center;">ALL Enrollments Goal<br><span style="font-size:14px;">{{ data.enrollments_goal }}</span></td>
+    <td colspan="2" class="section-row" style="text-align:center;">ALL Enrollments YTD<br><span style="font-size:14px;">{{ data.enrollments_ytd }}</span></td>
+  </tr>
+  <tr>
+    <td class="label-cell">PM MOD:<br>{{ data.pm_mod }}</td>
+    <td>OOS/ OOO</td><td class="center">{{ data.house_status.oos_ooo }}</td>
+    <td colspan="2"></td><td colspan="2"></td>
+  </tr>
+  <tr>
+    <td class="label-cell">NM:<br>{{ data.nm }}</td>
+    <td>No Show</td><td class="center">{{ data.house_status.no_show }}</td>
+    <td colspan="2"></td><td colspan="2"></td>
+  </tr>
+  <tr>
+    <td class="label-cell">Weekend EOD:<br>{{ data.weekend_eod }}</td>
+    <td>Comp./house use</td><td class="center">{{ data.house_status.comp_house_use }}</td>
+    <td colspan="2"></td><td colspan="2"></td>
+  </tr>
+
+  <tr class="section-row dark"><td colspan="9">Fairmont Baku 2026 Goals</td></tr>
+  <tr>
+    <td class="goals-cell">CES Goal</td><td class="goals-cell">{{ data.fairmont_goals.ces_goal }}</td>
+    <td class="goals-cell">LQA Goal</td><td class="goals-cell">{{ data.fairmont_goals.lqa_goal }}</td>
+    <td class="goals-cell">RPS Goal</td><td class="goals-cell">{{ data.fairmont_goals.rps_goal }}</td>
+    <td class="goals-cell">RPS MTD</td><td class="goals-cell">{{ data.fairmont_goals.rps_mtd }}</td>
+  </tr>
+  <tr>
+    <td class="goals-cell">CES Actual</td><td class="goals-cell">{{ data.fairmont_goals.ces_actual }}</td>
+    <td class="goals-cell">LQA Actual</td><td class="goals-cell">{{ data.fairmont_goals.lqa_actual }}</td>
+    <td class="goals-cell">RPS YTD</td><td class="goals-cell">{{ data.fairmont_goals.rps_ytd }}</td>
+    <td colspan="2"></td>
+  </tr>
+
+  <tr class="section-row"><td colspan="9">Site Inspections</td></tr>
+  <tr class="thdr">
+    <td>Time</td><td>Guest</td><td colspan="5">Position / Company</td><td colspan="2">Sales Contact</td>
+  </tr>
+  {% for insp in data.site_inspections %}
+  <tr>
+    <td class="center">{{ insp.time }}</td><td class="center">{{ insp.guest }}</td>
+    <td colspan="5" class="center">{{ insp.position_company }}</td>
+    <td colspan="2" class="center">{{ insp.sales_contact }}</td>
+  </tr>
+  {% endfor %}
+
+  {% for section_title, guest_list, date_label, date_key, third_label, third_key in [
+      ('VIP Arrivals', data.vip_arrivals, 'ETA', 'eta', 'Remarks', 'remarks'),
+      ('VIP In-House Guests', data.vip_inhouse, 'Departure day', 'departure_day', 'Remarks', 'remarks'),
+      ('VIP Departures', data.vip_departures, 'Departure day', 'departure_day', 'Departure Time', 'departure_time')
+  ] %}
+  <tr class="section-row"><td colspan="9">{{ section_title }}</td></tr>
+  <tr class="thdr">
+    <td>Guest</td><td>Code</td><td>Room</td><td>{{ date_label }}</td>
+    <td colspan="2">{{ third_label }}</td><td colspan="3">Company</td>
+  </tr>
+  {% for g in guest_list %}
+  <tr>
+    <td>
+      <div class="guest-cell">
+        {% if g.photo_fs_path %}<img class="guest-photo" src="file://{{ g.photo_fs_path }}">{% endif %}
+        <span>{{ g.guest }}</span>
+      </div>
+    </td>
+    <td class="center"><span class="code-badge" style="{{ code_style(g.code) }}">{{ g.code }}</span></td>
+    <td class="center">{{ g.room }}</td>
+    <td class="center">{{ g[date_key] }}</td>
+    <td colspan="2" class="center {{ 'review-flag' if g.remarks_needs_review and third_key == 'remarks' else '' }}">{{ g[third_key] }}</td>
+    <td colspan="3" class="center">{{ g.company }}</td>
+  </tr>
+  {% endfor %}
+  {% endfor %}
+</table>
+</div>
+
+<!-- ================= SHEET 2: F&B Section ================= -->
+<div class="sheet-page">
+<table>
+  <tr class="title-row"><td colspan="9">FLAMING NEWS FOR {{ title_date }}</td></tr>
+  <tr class="title-row"><td colspan="9">Quote of the Day : &ldquo;{{ data.quote }}&rdquo;</td></tr>
+  <tr class="title-row"><td colspan="9" style="font-size:12px;">FOOD &amp; BEVERAGE</td></tr>
+
+  <tr class="section-row"><td colspan="9">Events</td></tr>
+  <tr class="green-hdr">
+    <td>Time</td><td colspan="2">Meeting Room</td><td colspan="3">Company</td><td colspan="3">Sales contact</td>
+  </tr>
+  {% for ev in data.events %}
+  <tr>
+    <td class="center">{{ ev.time }}</td>
+    <td colspan="2" class="center">{{ ev.meeting_room }}</td>
+    <td colspan="3" class="center">{{ ev.company }}</td>
+    <td colspan="3" class="center">{{ ev.sales_contact }}</td>
+  </tr>
+  {% endfor %}
+
+  <tr>
+    <td colspan="3" class="section-row" style="text-align:center;">Birthday</td>
+    <td colspan="6" class="section-row" style="text-align:center;">Anniversary</td>
+  </tr>
+  {% for i in range(data.birthday|length) %}
+  <tr>
+    <td colspan="3" class="val-cell left">{{ data.birthday[i] }}</td>
+    <td colspan="6" class="val-cell left">{{ data.anniversary[i] if i < data.anniversary|length else '' }}</td>
+  </tr>
+  {% endfor %}
+
+  <tr class="section-row"><td colspan="9">Food &amp; Beverage Performance</td></tr>
+  <tr class="thdr">
+    <td>Outlet</td><td>Revenue</td><td>GİH</td><td>External guests</td><td colspan="5">Special promotions</td>
+  </tr>
+  {% for perf in data.fb_performance %}
+  <tr>
+    <td class="left"><strong>{{ perf.outlet }}</strong></td>
+    <td class="center">{{ perf.revenue }}</td>
+    <td class="center">{{ perf.gih }}</td>
+    <td class="center">{{ perf.external_guests }}</td>
+    <td colspan="5" class="left">{{ perf.special_promotions }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+</body>
+</html>
