@@ -10,9 +10,12 @@ import parsers
 import rules
 import excel_writer
 import data_store
+import report_config
+from admin_api import admin_bp
 
 app = Flask(__name__)
 app.secret_key = 'flaming-news-secret'  # change in production / set via env var
+app.register_blueprint(admin_bp)
 
 PHOTOS_DIR = os.path.join(data_store.DATA_DIR, 'photos')
 os.makedirs(PHOTOS_DIR, exist_ok=True)
@@ -21,6 +24,11 @@ os.makedirs(PHOTOS_DIR, exist_ok=True)
 def _today_iso():
     q = request.args.get('date') or (request.json.get('date') if request.is_json else None)
     return q or date.today().isoformat()
+
+
+@app.route('/admin', methods=['GET'])
+def admin_page():
+    return render_template('admin.html')
 
 
 @app.route('/', methods=['GET'])

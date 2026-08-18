@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<title>Admin Panel — Flaming News</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Calibri, Arial, sans-serif; background:#eef0f2; margin:0; padding:0; color:#222; }
+  .topbar { background:#2c2c2c; color:#fff; padding:12px 20px; display:flex; align-items:center; gap:14px; }
+  .topbar h1 { font-size:16px; margin:0; }
+  .topbar a { color:#ffcc66; text-decoration:none; font-size:13px; }
+  .wrap { max-width:900px; margin:20px auto; padding:0 16px 60px; }
+  .card { background:#fff; border:1px solid #ccc; border-radius:8px; padding:16px 20px; margin-bottom:18px; }
+  .card h2 { font-size:15px; margin:0 0 4px; }
+  .card .desc { font-size:12px; color:#777; margin-bottom:12px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:8px; }
+  .row label { flex:0 0 220px; font-size:13px; color:#444; }
+  .row input[type=text], .row input[type=number] { flex:1; padding:6px 8px; border:1px solid #bbb; border-radius:4px; font-size:13px; }
+  .row input[type=color] { width:40px; height:30px; border:none; padding:0; }
+  .defaults-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .defaults-row input { padding:5px 7px; border:1px solid #bbb; border-radius:4px; font-size:13px; }
+  .defaults-row input.path { flex:1; font-family:monospace; }
+  .defaults-row input.value { width:140px; }
+  .btn { background:#2c2c2c; color:#fff; border:none; border-radius:4px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .btn:hover { background:#454545; }
+  .btn.secondary { background:#e0e0e0; color:#222; }
+  .btn.secondary:hover { background:#cfcfcf; }
+  .btn.danger { background:#c0392b; }
+  .btn.small { padding:4px 9px; font-size:12px; }
+  .actions { display:flex; gap:10px; margin:18px 0; }
+  .status { font-size:12px; color:#666; margin-left:auto; align-self:center; }
+  .section-item { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #eee; font-size:13px; }
+  .section-item .sheet-badge { background:#92D050; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; }
+  .history-item { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #eee; font-size:13px; }
+  .history-item .id { font-family:monospace; color:#555; }
+  .toast { position:fixed; bottom:20px; right:20px; background:#2e7d32; color:#fff; padding:10px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.2); display:none; z-index:100; }
+  .toast.error { background:#c0392b; }
+  .note { font-size:11px; color:#999; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⚙️ Admin Panel — Flaming News</h1>
+  <a href="/">← Hesabata qayıt</a>
+  <span class="status" id="statusLine" style="color:#ffcc66;"></span>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>Default / Static Dəyərlər</h2>
+    <div class="desc">Nadir dəyişən sahələr (məs. LQA Goal). Bir dəfə yazılır, hər yeni gündə avtomatik köçür. Konkret gündə əl ilə dəyişmək yalnız o günə aiddir, bu default-u pozmur.</div>
+    <div id="defaultsList"></div>
+    <button class="btn small secondary" id="addDefaultBtn">+ Yeni default sahə</button>
+  </div>
+
+  <div class="card">
+    <h2>Occupancy Rəng Qaydası</h2>
+    <div class="desc">7 Day Forecast-da Occupancy % xanası bu aralığa görə qırmızıdan yaşıla keçəcək (gələcək tətbiq — Part E-də HTML-ə bağlanacaq).</div>
+    <div class="row"><label>Aktiv</label><input type="checkbox" id="occEnabled"></div>
+    <div class="row"><label>0% rəngi</label><input type="color" id="occLowColor"></div>
+    <div class="row"><label>100% rəngi</label><input type="color" id="occHighColor"></div>
+  </div>
+
+  <div class="card">
+    <h2>Bölmələr (Sections)</h2>
+    <div class="desc">Hazırkı hesabat strukturu. Aktiv/deaktiv et — sıralama və yeni bölmə əlavəsi növbəti hissədə.</div>
+    <div id="sectionsList"></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn secondary" id="saveDraftBtn">💾 Draft-ı saxla</button>
+    <button class="btn" id="publishBtn">🚀 Publish et (canlıya çıxar)</button>
+  </div>
+
+  <div class="card">
+    <h2>Tarixçə (History)</h2>
+    <div class="desc">Hər Publish-dən əvvəlki versiya burada saxlanılır. Restore et = həmin versiyanı Draft-a qaytarır (yenə Publish lazımdır ki, canlıya çıxsın).</div>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let DRAFT = null;
+
+function toast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  setTimeout(()=>{ t.style.display='none'; }, 3000);
+}
+
+async function loadDraft() {
+  const res = await fetch('/api/admin/config/draft');
+  DRAFT = await res.json();
+  renderDefaults();
+  renderOccupancy();
+  renderSections();
+  document.getElementById('statusLine').textContent = 'Son yenilənmə: ' + (DRAFT.updated_at || '—');
+}
+
+function renderDefaults() {
+  const list = document.getElementById('defaultsList');
+  list.innerHTML = '';
+  const entries = Object.entries(DRAFT.static_defaults || {});
+  entries.forEach(([path, value], i) => {
+    const row = document.createElement('div');
+    row.className = 'defaults-row';
+    const pathInput = document.createElement('input');
+    pathInput.className = 'path'; pathInput.value = path; pathInput.placeholder = 'fairmont_goals.lqa_goal';
+    pathInput.addEventListener('input', () => {
+      const newDefaults = {};
+      Object.entries(DRAFT.static_defaults).forEach(([p,v],j)=>{ newDefaults[j===i?pathInput.value:p] = v; });
+      DRAFT.static_defaults = newDefaults;
+    });
+    const valueInput = document.createElement('input');
+    valueInput.className = 'value'; valueInput.value = value; valueInput.placeholder = 'dəyər';
+    valueInput.addEventListener('input', () => { DRAFT.static_defaults[path] = valueInput.value; });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn small danger'; delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => { delete DRAFT.static_defaults[path]; renderDefaults(); });
+    row.appendChild(pathInput); row.appendChild(valueInput); row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+document.getElementById('addDefaultBtn').addEventListener('click', () => {
+  DRAFT.static_defaults = DRAFT.static_defaults || {};
+  DRAFT.static_defaults[''] = '';
+  renderDefaults();
+});
+
+function renderOccupancy() {
+  const r = DRAFT.occupancy_color_rule || {};
+  document.getElementById('occEnabled').checked = !!r.enabled;
+  document.getElementById('occLowColor').value = r.low_color || '#FF0000';
+  document.getElementById('occHighColor').value = r.high_color || '#00B050';
+  document.getElementById('occEnabled').onchange = (e) => { DRAFT.occupancy_color_rule.enabled = e.target.checked; };
+  document.getElementById('occLowColor').oninput = (e) => { DRAFT.occupancy_color_rule.low_color = e.target.value; };
+  document.getElementById('occHighColor').oninput = (e) => { DRAFT.occupancy_color_rule.high_color = e.target.value; };
+}
+
+function renderSections() {
+  const list = document.getElementById('sectionsList');
+  list.innerHTML = '';
+  (DRAFT.sections || []).forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'section-item';
+    const badge = document.createElement('span');
+    badge.className = 'sheet-badge'; badge.textContent = 'Sheet ' + s.sheet;
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.checked = !!s.enabled;
+    chk.addEventListener('change', () => { DRAFT.sections[i].enabled = chk.checked; });
+    const title = document.createElement('span');
+    title.textContent = s.title; title.style.flex = '1';
+    row.appendChild(badge); row.appendChild(chk); row.appendChild(title);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('saveDraftBtn').addEventListener('click', async () => {
+  const res = await fetch('/api/admin/config/draft', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(DRAFT)
+  });
+  const j = await res.json();
+  if (j.status === 'ok') { DRAFT = j.config; toast('Draft saxlanıldı.'); }
+  else toast('Xəta baş verdi', true);
+});
+
+document.getElementById('publishBtn').addEventListener('click', async () => {
+  if (!confirm('Bu dəyişiklikləri canlıya çıxarmaq istədiyinizə əminsiniz? Yalnız BUNDAN SONRA yaradılan günlərə tətbiq olunacaq.')) return;
+  const res = await fetch('/api/admin/config/publish', { method:'POST' });
+  const j = await res.json();
+  if (j.status === 'ok') { toast('Publish edildi ✅'); loadHistory(); }
+  else toast('Xəta baş verdi', true);
+});
+
+async function loadHistory() {
+  const res = await fetch('/api/admin/config/history');
+  const entries = await res.json();
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  if (!entries.length) { list.innerHTML = '<div class="note">Hələ tarixçə yoxdur.</div>'; return; }
+  entries.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'history-item';
+    const id = document.createElement('span'); id.className = 'id'; id.textContent = e.id;
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'btn small secondary'; restoreBtn.textContent = 'Restore → Draft';
+    restoreBtn.addEventListener('click', async () => {
+      const r = await fetch(`/api/admin/config/history/${e.id}/restore`, {method:'POST'});
+      const j = await r.json();
+      if (j.status === 'ok') { DRAFT = j.config; renderDefaults(); renderOccupancy(); renderSections(); toast(j.note); }
+    });
+    row.appendChild(id); row.appendChild(restoreBtn);
+    list.appendChild(row);
+  });
+}
+
+loadDraft();
+loadHistory();
+</script>
+</body>
+</html>

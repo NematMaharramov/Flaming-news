@@ -13,6 +13,8 @@ import os
 import glob
 from datetime import date, datetime
 
+import report_config
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -96,7 +98,7 @@ def load_today_or_carry_forward(iso_date=None):
 
     prev_date = most_recent_before(iso_date)
     if prev_date is None:
-        return empty_day(iso_date), False, None
+        return report_config.apply_static_defaults(empty_day(iso_date)), False, None
 
     prev = load_day(prev_date)
     carried = json.loads(json.dumps(prev))  # deep copy
@@ -115,6 +117,11 @@ def load_today_or_carry_forward(iso_date=None):
     carried['events'] = []
     carried['birthday'] = ['', '', '', '']
     carried['anniversary'] = ['', '', '', '']
+
+    # Admin-defined static defaults (e.g. LQA goal) are re-stamped on every
+    # newly-created day so a later default change takes effect going
+    # forward without ever touching an already-saved day's own values.
+    carried = report_config.apply_static_defaults(carried)
 
     return carried, True, prev_date
 
