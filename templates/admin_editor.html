@@ -138,6 +138,25 @@
   </div>
 </div>
 
+<!-- ============ Fixed-section row modal (7 Day Forecast metric / AM MOD-Goals field) ============ -->
+<div class="modal-overlay" id="fixedRowModal">
+  <div class="modal-box">
+    <h3>Sətri redaktə et</h3>
+    <div class="field-row"><label>Ad (Label)</label><input type="text" id="fixedRowLabel"></div>
+    <div class="field-row" id="fixedRowKeyWrap">
+      <label>Data path (məs. fairmont_goals.nps_goal)</label>
+      <input type="text" id="fixedRowKey">
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger small" id="fixedRowDeleteBtn">🗑 Sətri sil</button>
+      <div>
+        <button class="btn small" id="fixedRowCancelBtn">Bağla</button>
+        <button class="btn primary small" id="fixedRowApplyBtn">Tətbiq et</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -264,10 +283,28 @@ function renderSheet(sheetNum, containerId) {
       const r = document.createElement('td'); r.colSpan = section.right.colspan; r.className='col-header'; r.textContent = section.right.label;
       headTr.appendChild(l); headTr.appendChild(r); table.appendChild(headTr);
     } else if (section.type === 'fixed') {
-      const noteTr = document.createElement('tr');
-      const noteTd = document.createElement('td'); noteTd.colSpan = 9; noteTd.className = 'fixed-note';
-      noteTd.textContent = '(Bu bölmənin daxili sahələri hələ tam redaktə olunmur — yalnız başlıq stilini dəyişə, aktiv/deaktiv edə, sıralaya bilərsiniz.)';
-      noteTr.appendChild(noteTd); table.appendChild(noteTr);
+      const rows = section.metric_rows || section.fields || [];
+      const rowKind = section.metric_rows ? 'metric_rows' : 'fields';
+      rows.forEach((row, ri) => {
+        const rowTr = document.createElement('tr');
+        const labelTd = document.createElement('td');
+        labelTd.className = 'col-header';
+        labelTd.textContent = row.label;
+        labelTd.colSpan = 6;
+        labelTd.addEventListener('click', () => openFixedRowModal(section._idx, rowKind, ri));
+        const previewTd = document.createElement('td');
+        previewTd.className = 'placeholder-cell'; previewTd.colSpan = 3;
+        previewTd.textContent = rowKind === 'metric_rows' ? '(7 günlük dəyər sırası)' : 'Sample value';
+        rowTr.appendChild(labelTd); rowTr.appendChild(previewTd);
+        table.appendChild(rowTr);
+      });
+      const addRowTr = document.createElement('tr');
+      const addRowTd = document.createElement('td'); addRowTd.colSpan = 9;
+      const addRowBtn = document.createElement('button');
+      addRowBtn.className = 'add-col-btn'; addRowBtn.textContent = '+ Yeni sətir əlavə et';
+      addRowBtn.onclick = () => addFixedRow(section._idx, rowKind);
+      addRowTd.appendChild(addRowBtn); addRowTr.appendChild(addRowTd);
+      table.appendChild(addRowTr);
     }
 
     block.appendChild(table);
@@ -396,6 +433,52 @@ document.getElementById('colDeleteBtn').onclick = () => {
   const {sectionIdx, colIdx} = editingColRef;
   DRAFT.sections[sectionIdx].columns.splice(colIdx, 1);
   document.getElementById('colModal').classList.remove('open');
+  render();
+};
+
+// ---------- fixed-section rows (7 Day Forecast metrics, AM MOD / Goals fields) ----------
+let editingFixedRowRef = null; // {sectionIdx, rowKind, rowIdx}
+
+function slugify(label) {
+  return label.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || ('field_' + Date.now());
+}
+
+function addFixedRow(sectionIdx, rowKind) {
+  const label = prompt('Yeni sətrin adı:');
+  if (!label) return;
+  const section = DRAFT.sections[sectionIdx];
+  const key = slugify(label);
+  section[rowKind] = section[rowKind] || [];
+  if (rowKind === 'metric_rows') {
+    section.metric_rows.push({key, label});
+  } else {
+    section.fields.push({key, label, data_path: key});
+  }
+  render();
+}
+
+function openFixedRowModal(sectionIdx, rowKind, rowIdx) {
+  editingFixedRowRef = {sectionIdx, rowKind, rowIdx};
+  const row = DRAFT.sections[sectionIdx][rowKind][rowIdx];
+  document.getElementById('fixedRowLabel').value = row.label || '';
+  document.getElementById('fixedRowKeyWrap').style.display = rowKind === 'fields' ? '' : 'none';
+  if (rowKind === 'fields') document.getElementById('fixedRowKey').value = row.data_path || '';
+  document.getElementById('fixedRowModal').classList.add('open');
+}
+document.getElementById('fixedRowCancelBtn').onclick = () => document.getElementById('fixedRowModal').classList.remove('open');
+document.getElementById('fixedRowApplyBtn').onclick = () => {
+  const {sectionIdx, rowKind, rowIdx} = editingFixedRowRef;
+  const row = DRAFT.sections[sectionIdx][rowKind][rowIdx];
+  row.label = document.getElementById('fixedRowLabel').value;
+  if (rowKind === 'fields') row.data_path = document.getElementById('fixedRowKey').value;
+  document.getElementById('fixedRowModal').classList.remove('open');
+  render();
+};
+document.getElementById('fixedRowDeleteBtn').onclick = () => {
+  if (!confirm('Bu sətri silmək istədiyinizə əminsiniz?')) return;
+  const {sectionIdx, rowKind, rowIdx} = editingFixedRowRef;
+  DRAFT.sections[sectionIdx][rowKind].splice(rowIdx, 1);
+  document.getElementById('fixedRowModal').classList.remove('open');
   render();
 };
 

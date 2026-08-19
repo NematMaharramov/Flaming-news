@@ -155,48 +155,12 @@
   <table class="grid">
     <tr class="title-row"><td colspan="9" id="titleCell">FLAMING NEWS FOR ...</td></tr>
     <tr class="title-row"><td colspan="9">Quote of the Day : “<input class="cell" id="quoteInput" style="color:var(--red);font-weight:bold;font-size:16px;text-align:center;" placeholder="Quote of the day"></input>”</td></tr>
-
-    <tr class="section-row"><td colspan="9">7 Day Forecast</td></tr>
-    <tr class="green-hdr" id="forecastDateRow"></tr>
-    <tbody id="forecastMetrics"></tbody>
-
-    <tr>
-      <td class="left-align" style="background:var(--grey);font-weight:bold;width:11%;">AM MOD:<br><input class="cell" data-path="am_mod"></td>
-      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">House Status</td>
-      <td rowspan="2" style="background:var(--green);font-weight:bold;text-align:center;">Weather Today<br><textarea class="cell" data-path="weather" style="background:var(--grey);"></textarea></td>
-      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">ALL Enrollments Goal<br><input class="cell" data-path="enrollments_goal" style="background:var(--grey);font-size:18px;font-weight:bold;"></td>
-      <td colspan="2" style="background:var(--green);font-weight:bold;text-align:center;">ALL Enrollments YTD<br><input class="cell" data-path="enrollments_ytd" style="background:var(--grey);font-size:18px;font-weight:bold;"></td>
-    </tr>
-    <tr>
-      <td class="left-align" style="background:var(--grey);font-weight:bold;">PM MOD:<br><input class="cell" data-path="pm_mod"></td>
-      <td>OOS/ OOO</td><td><input class="cell" data-path="house_status.oos_ooo"></td>
-      <td colspan="2"></td><td colspan="2"></td>
-    </tr>
-    <tr>
-      <td class="left-align" style="background:var(--grey);font-weight:bold;">NM:<br><input class="cell" data-path="nm"></td>
-      <td>No Show</td><td><input class="cell" data-path="house_status.no_show"></td>
-      <td></td><td colspan="2"></td><td colspan="2"></td>
-    </tr>
-    <tr>
-      <td class="left-align" style="background:var(--grey);font-weight:bold;">Weekend EOD:<br><input class="cell" data-path="weekend_eod"></td>
-      <td>Comp./house use</td><td><input class="cell" data-path="house_status.comp_house_use"></td>
-      <td></td><td colspan="2"></td><td colspan="2"></td>
-    </tr>
-
-    <tr class="section-row"><td colspan="9" style="background:#70AD47;">Fairmont Baku 2026 Goals</td></tr>
-    <tr class="goals-block">
-      <td class="label">CES Goal</td><td><input class="cell" data-path="fairmont_goals.ces_goal"></td>
-      <td class="label">LQA Goal</td><td><input class="cell" data-path="fairmont_goals.lqa_goal"></td>
-      <td class="label">RPS Goal</td><td><input class="cell" data-path="fairmont_goals.rps_goal"></td>
-      <td class="label">RPS MTD</td><td><input class="cell" data-path="fairmont_goals.rps_mtd"></td>
-    </tr>
-    <tr class="goals-block">
-      <td class="label">CES Actual</td><td><input class="cell" data-path="fairmont_goals.ces_actual"></td>
-      <td class="label">LQA Actual</td><td><input class="cell" data-path="fairmont_goals.lqa_actual"></td>
-      <td class="label">RPS YTD</td><td><input class="cell" data-path="fairmont_goals.rps_ytd"></td>
-      <td colspan="2"></td>
-    </tr>
   </table>
+
+  <!-- Config-driven fixed sections: 7 Day Forecast, AM MOD/House Status/Weather/Enrollments, Goals -->
+  <div id="forecastSectionContainer"></div>
+  <div id="amPmModSectionContainer"></div>
+  <div id="goalsSectionContainer"></div>
 
   <!-- Config-driven sections (Site Inspections, VIP Arrivals/In-House/Departures) render here -->
   <div id="sheet1DynamicSections"></div>
@@ -365,35 +329,74 @@ function removeBtn(onClick) {
   return b;
 }
 
-// ---------- Forecast ----------
-const FORECAST_METRICS = [
-  ['occupancy_pct', 'Occupancy %'],
-  ['rooms_occupied', 'Rooms Occupied (excl house use & comp)'],
-  ['adr', 'ADR'],
-  ['arrivals', 'Arrivals'],
-  ['departures', 'Departures'],
-];
-
+// ---------- Forecast (config-driven metric_rows, dates stay fixed structure) ----------
 function renderForecast() {
+  const section = sectionById('forecast');
+  const container = document.getElementById('forecastSectionContainer');
+  container.innerHTML = '';
+  if (!section || !section.enabled) return;
   const fc = STATE.forecast;
-  const dateRow = document.getElementById('forecastDateRow');
-  dateRow.innerHTML = '';
-  const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight='bold'; lbl.colSpan = 2; dateRow.appendChild(lbl);
-  for (let i=0;i<7;i++) {
-    dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i], {kind:'date'})));
-  }
-  const body = document.getElementById('forecastMetrics');
-  body.innerHTML = '';
-  FORECAST_METRICS.forEach(([key,label])=>{
+
+  const table = document.createElement('table');
+  table.className = 'grid';
+  const titleTr = document.createElement('tr'); titleTr.className = 'section-row';
+  const titleTd = document.createElement('td'); titleTd.colSpan = 9; titleTd.textContent = section.title;
+  applyStyle(titleTd, section.style);
+  titleTr.appendChild(titleTd); table.appendChild(titleTr);
+
+  const dateRow = document.createElement('tr'); dateRow.className = 'green-hdr';
+  const lbl = document.createElement('td'); lbl.textContent = 'DATE:'; lbl.style.fontWeight = 'bold'; lbl.colSpan = 2;
+  dateRow.appendChild(lbl);
+  for (let i=0;i<7;i++) dateRow.appendChild(td(cellInput(`forecast.dates.${i}`, fc.dates[i], {kind:'date'})));
+  table.appendChild(dateRow);
+
+  (section.metric_rows||[]).forEach(metric => {
+    fc[metric.key] = fc[metric.key] || ['','','','','','',''];
     const tr = document.createElement('tr');
-    const l = document.createElement('td'); l.textContent = label; l.style.background='var(--green)'; l.style.fontWeight='bold'; l.colSpan = 2;
+    const l = document.createElement('td'); l.textContent = metric.label; l.style.background = 'var(--green)'; l.style.fontWeight = 'bold'; l.colSpan = 2;
+    applyStyle(l, metric.style);
     tr.appendChild(l);
-    for (let i=0;i<7;i++){
-      tr.appendChild(td(cellInput(`forecast.${key}.${i}`, fc[key][i]), {cls:'val-cell'}));
-    }
-    body.appendChild(tr);
+    for (let i=0;i<7;i++) tr.appendChild(td(cellInput(`forecast.${metric.key}.${i}`, fc[metric.key][i]), {cls:'val-cell'}));
+    table.appendChild(tr);
   });
+
+  container.appendChild(table);
 }
+
+// ---------- AM MOD / Goals — config-driven label:value field rows ----------
+function renderFieldsFixed(sectionId, containerId, colsPerRow) {
+  const section = sectionById(sectionId);
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (!section || !section.enabled) return;
+
+  const table = document.createElement('table');
+  table.className = 'grid'; table.style.marginTop = '8px';
+  const titleTr = document.createElement('tr'); titleTr.className = 'section-row';
+  const titleTd = document.createElement('td'); titleTd.colSpan = 9; titleTd.textContent = section.title;
+  applyStyle(titleTd, section.style);
+  titleTr.appendChild(titleTd); table.appendChild(titleTr);
+
+  const fields = section.fields || [];
+  for (let i = 0; i < fields.length; i += colsPerRow) {
+    const tr = document.createElement('tr');
+    for (let j = i; j < i + colsPerRow; j++) {
+      if (j >= fields.length) { tr.appendChild(document.createElement('td')); tr.appendChild(document.createElement('td')); continue; }
+      const f = fields[j];
+      const labelTd = document.createElement('td');
+      labelTd.textContent = f.label; labelTd.style.background = 'var(--grey)'; labelTd.style.fontWeight = 'bold';
+      applyStyle(labelTd, f.style);
+      const valueTd = document.createElement('td');
+      valueTd.style.background = 'var(--grey)';
+      valueTd.appendChild(cellInput(f.data_path, getPath(STATE, f.data_path)));
+      tr.appendChild(labelTd); tr.appendChild(valueTd);
+    }
+    table.appendChild(tr);
+  }
+  container.appendChild(table);
+}
+function renderAmPmMod() { renderFieldsFixed('am_pm_mod', 'amPmModSectionContainer', 2); }
+function renderGoals() { renderFieldsFixed('goals', 'goalsSectionContainer', 2); }
 
 // ---------- Generic config-driven section rendering (table + parallel_lines) ----------
 function sectionById(id) { return (CONFIG.sections||[]).find(s => s.id === id); }
@@ -709,6 +712,8 @@ function bindStaticFields() {
 function renderAll() {
   refreshTitles();
   renderForecast();
+  renderAmPmMod();
+  renderGoals();
   renderDynamicSections(1, 'sheet1DynamicSections');
   renderDynamicSections(2, 'sheet2DynamicSections');
 }

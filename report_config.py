@@ -43,19 +43,24 @@ def default_config():
     paths into a day's data dict (same shape as data_store.empty_day),
     applied only at day-creation time (see data_store.py).
 
-    sections: ordered list describing every repeating/table-like part of
-    the report. type='table' sections are fully driven by `columns` (the
-    HTML editor renders them generically — see static/report-render.js) so
-    an admin can add/remove/resize columns, or add/remove whole sections,
-    without touching application code. type='parallel_lines' is the
-    Birthday/Anniversary style (two free-text columns, no headers per
-    line). type='fixed' sections (forecast, the AM MOD/weather/goals
-    block) are NOT yet config-driven — their layout is still hardcoded in
-    the template; that's a larger follow-up since they're matrix-shaped
-    rather than repeating rows.
+    sections: ordered list describing every part of the report.
+    - type='table': fully driven by `columns` — admin can add/remove/
+      resize/style columns, or add/remove whole sections, without touching
+      application code.
+    - type='parallel_lines': the Birthday/Anniversary style (two free-text
+      columns, no headers per line).
+    - type='fixed': matrix-shaped blocks (7 Day Forecast, the AM MOD/
+      Weather/Goals block) that aren't repeating rows in the same sense as
+      a table. As of schema v3 these are still driven by config too:
+      'forecast' has `metric_rows` (one row per forecast metric — Occupancy
+      %, ADR, etc, each mapped to a key in a day's forecast.* arrays) and
+      'am_pm_mod'/'goals' have `fields` (one row per label/value pair,
+      each mapped to a dotted data path). An admin can add/edit/delete/
+      reorder these rows from the Visual Editor without code changes —
+      e.g. adding a 'RevPAR' forecast metric or an 'NPS Goal' field.
     """
     return {
-        'schema_version': 2,
+        'schema_version': 3,
         'updated_at': None,
         'static_defaults': {
             'fairmont_goals.ces_goal': 90,
@@ -70,9 +75,46 @@ def default_config():
             'high_color': '#00B050',
         },
         'sections': [
-            {'id': 'forecast', 'sheet': 1, 'title': '7 Day Forecast', 'type': 'fixed', 'enabled': True, 'order': 1},
-            {'id': 'am_pm_mod', 'sheet': 1, 'title': 'AM MOD / PM MOD / House Status / Weather / Enrollments', 'type': 'fixed', 'enabled': True, 'order': 2},
-            {'id': 'goals', 'sheet': 1, 'title': 'Fairmont Baku 2026 Goals', 'type': 'fixed', 'enabled': True, 'order': 3},
+            {
+                'id': 'forecast', 'sheet': 1, 'title': '7 Day Forecast', 'type': 'fixed',
+                'enabled': True, 'order': 1,
+                'metric_rows': [
+                    {'key': 'occupancy_pct', 'label': 'Occupancy %'},
+                    {'key': 'rooms_occupied', 'label': 'Rooms Occupied (excl house use & comp)'},
+                    {'key': 'adr', 'label': 'ADR'},
+                    {'key': 'arrivals', 'label': 'Arrivals'},
+                    {'key': 'departures', 'label': 'Departures'},
+                ],
+            },
+            {
+                'id': 'am_pm_mod', 'sheet': 1, 'title': 'AM MOD / PM MOD / House Status / Weather / Enrollments',
+                'type': 'fixed', 'enabled': True, 'order': 2,
+                'fields': [
+                    {'key': 'am_mod', 'label': 'AM MOD:', 'data_path': 'am_mod'},
+                    {'key': 'pm_mod', 'label': 'PM MOD:', 'data_path': 'pm_mod'},
+                    {'key': 'nm', 'label': 'NM:', 'data_path': 'nm'},
+                    {'key': 'weekend_eod', 'label': 'Weekend EOD:', 'data_path': 'weekend_eod'},
+                    {'key': 'oos_ooo', 'label': 'OOS/ OOO', 'data_path': 'house_status.oos_ooo'},
+                    {'key': 'no_show', 'label': 'No Show', 'data_path': 'house_status.no_show'},
+                    {'key': 'comp_house_use', 'label': 'Comp./house use', 'data_path': 'house_status.comp_house_use'},
+                    {'key': 'weather', 'label': 'Weather Today', 'data_path': 'weather'},
+                    {'key': 'enrollments_goal', 'label': 'ALL Enrollments Goal', 'data_path': 'enrollments_goal'},
+                    {'key': 'enrollments_ytd', 'label': 'ALL Enrollments YTD', 'data_path': 'enrollments_ytd'},
+                ],
+            },
+            {
+                'id': 'goals', 'sheet': 1, 'title': 'Fairmont Baku 2026 Goals', 'type': 'fixed',
+                'enabled': True, 'order': 3,
+                'fields': [
+                    {'key': 'ces_goal', 'label': 'CES Goal', 'data_path': 'fairmont_goals.ces_goal'},
+                    {'key': 'ces_actual', 'label': 'CES Actual', 'data_path': 'fairmont_goals.ces_actual'},
+                    {'key': 'lqa_goal', 'label': 'LQA Goal', 'data_path': 'fairmont_goals.lqa_goal'},
+                    {'key': 'lqa_actual', 'label': 'LQA Actual', 'data_path': 'fairmont_goals.lqa_actual'},
+                    {'key': 'rps_goal', 'label': 'RPS Goal', 'data_path': 'fairmont_goals.rps_goal'},
+                    {'key': 'rps_mtd', 'label': 'RPS MTD', 'data_path': 'fairmont_goals.rps_mtd'},
+                    {'key': 'rps_ytd', 'label': 'RPS YTD', 'data_path': 'fairmont_goals.rps_ytd'},
+                ],
+            },
             {
                 'id': 'site_inspections', 'sheet': 1, 'title': 'Site Inspections', 'type': 'table',
                 'enabled': True, 'order': 4, 'data_key': 'site_inspections',
@@ -151,25 +193,52 @@ def default_config():
 
 
 def _migrate(cfg):
-    """Bring an older on-disk config up to the current schema_version.
-    v1 -> v2: 'sections' gained 'type'/'columns'/'order' for table-driven
-    rendering. Since v1 sections only had id/sheet/title/enabled, the
-    safest migration is to take the admin's enabled/disabled choices and
-    title edits (if any) and re-merge them onto the current factory
-    section definitions, rather than trying to guess columns for a v1
-    section that never had any."""
-    if cfg.get('schema_version', 1) >= 2:
-        return cfg
-    old_by_id = {s.get('id'): s for s in cfg.get('sections', [])}
-    fresh = default_config()
-    for s in fresh['sections']:
-        old = old_by_id.get(s['id'])
-        if old:
-            s['enabled'] = old.get('enabled', s['enabled'])
-            if old.get('title'):
-                s['title'] = old['title']
-    cfg['sections'] = fresh['sections']
-    cfg['schema_version'] = 2
+    """Bring an older on-disk config up to the current schema_version,
+    chaining through each step. Each step re-merges the admin's actual
+    choices (enabled/title/order/style, and now custom sections) onto the
+    current factory section definitions, rather than trying to guess
+    structure a prior version never had."""
+    version = cfg.get('schema_version', 1)
+
+    if version < 2:
+        old_by_id = {s.get('id'): s for s in cfg.get('sections', [])}
+        fresh = default_config()
+        for s in fresh['sections']:
+            old = old_by_id.get(s['id'])
+            if old:
+                s['enabled'] = old.get('enabled', s['enabled'])
+                if old.get('title'):
+                    s['title'] = old['title']
+        cfg['sections'] = fresh['sections']
+        cfg['schema_version'] = 2
+        version = 2
+
+    if version < 3:
+        # v2 'fixed' sections had no metric_rows/fields; v3 adds them.
+        # Any custom (admin-added) sections from v2 carry forward as-is.
+        old_by_id = {s.get('id'): s for s in cfg.get('sections', [])}
+        fresh = default_config()
+        fresh_ids = {s['id'] for s in fresh['sections']}
+        merged = []
+        for s in fresh['sections']:
+            old = old_by_id.get(s['id'])
+            if old:
+                s['enabled'] = old.get('enabled', s['enabled'])
+                s['order'] = old.get('order', s['order'])
+                if old.get('title'):
+                    s['title'] = old['title']
+                if old.get('style'):
+                    s['style'] = old['style']
+                if s.get('type') == 'table' and old.get('columns'):
+                    s['columns'] = old['columns']
+            merged.append(s)
+        for old in cfg.get('sections', []):
+            if old.get('id') not in fresh_ids:
+                merged.append(old)  # preserve admin-added custom sections
+        cfg['sections'] = merged
+        cfg['schema_version'] = 3
+        version = 3
+
     return cfg
 
 
