@@ -356,11 +356,44 @@ function renderForecast() {
     const l = document.createElement('td'); l.textContent = metric.label; l.style.background = 'var(--green)'; l.style.fontWeight = 'bold'; l.colSpan = 2;
     applyStyle(l, metric.style);
     tr.appendChild(l);
-    for (let i=0;i<7;i++) tr.appendChild(td(cellInput(`forecast.${metric.key}.${i}`, fc[metric.key][i]), {cls:'val-cell'}));
+    for (let i=0;i<7;i++) {
+      const inputEl = cellInput(`forecast.${metric.key}.${i}`, fc[metric.key][i]);
+      if (metric.key === 'occupancy_pct') {
+        applyOccupancyColor(inputEl);
+        inputEl.addEventListener('input', () => applyOccupancyColor(inputEl));
+      }
+      tr.appendChild(td(inputEl, {cls:'val-cell'}));
+    }
     table.appendChild(tr);
   });
 
   container.appendChild(table);
+}
+
+// ---------- Occupancy % gradient (Part E) — mirrors report_config.occupancy_color() ----------
+function hexToRgb(hex) {
+  hex = (hex || '#000000').replace('#','');
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+}
+function occupancyColorFor(pctValue) {
+  const rule = CONFIG.occupancy_color_rule || {};
+  if (!rule.enabled || pctValue == null || pctValue === '') return null;
+  const pct = parseFloat(String(pctValue).replace('%',''));
+  if (isNaN(pct)) return null;
+  const loPct = rule.low_pct != null ? rule.low_pct : 0;
+  const hiPct = rule.high_pct != null ? rule.high_pct : 100;
+  if (hiPct === loPct) return rule.high_color;
+  const t = Math.max(0, Math.min(1, (pct - loPct) / (hiPct - loPct)));
+  const lo = hexToRgb(rule.low_color || '#FF0000');
+  const hi = hexToRgb(rule.high_color || '#00B050');
+  const r = Math.round(lo[0] + (hi[0]-lo[0])*t);
+  const g = Math.round(lo[1] + (hi[1]-lo[1])*t);
+  const b = Math.round(lo[2] + (hi[2]-lo[2])*t);
+  return '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join('');
+}
+function applyOccupancyColor(inputEl) {
+  const color = occupancyColorFor(inputEl.value);
+  inputEl.style.background = color || '';
 }
 
 // ---------- AM MOD / Goals — config-driven label:value field rows ----------

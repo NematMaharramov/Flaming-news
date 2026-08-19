@@ -349,3 +349,58 @@ def apply_static_defaults(data):
             node = node[p]
         node[parts[-1]] = value
     return data
+
+
+# ---------------------------------------------------------------------------
+# Occupancy % gradient (red at low_pct -> green at high_pct), Part E.
+# Shared by excel_writer.py and the PDF print template so all three
+# surfaces (live HTML, Excel, PDF) compute the exact same colour for the
+# exact same percentage.
+# ---------------------------------------------------------------------------
+def _hex_to_rgb(hex_color):
+    h = (hex_color or '#000000').lstrip('#')
+    if len(h) != 6:
+        return (0, 0, 0)
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+
+def occupancy_color(pct_value, rule=None):
+    """
+    pct_value: a number (e.g. 61.54) — NOT a fraction, matches how
+    occupancy is stored/displayed ('61.54%' strings, parsed to 61.54).
+    rule: an occupancy_color_rule dict (falls back to the published
+    config's rule if not given). Returns an '#RRGGBB' string, or None if
+    the rule is disabled or pct_value can't be read.
+    """
+    if rule is None:
+        rule = load_published().get('occupancy_color_rule', {})
+    if not rule.get('enabled', True) or pct_value is None:
+        return None
+    try:
+        pct = float(pct_value)
+    except (TypeError, ValueError):
+        return None
+    lo_pct = rule.get('low_pct', 0)
+    hi_pct = rule.get('high_pct', 100)
+    if hi_pct == lo_pct:
+        return rule.get('high_color')
+    t = max(0.0, min(1.0, (pct - lo_pct) / (hi_pct - lo_pct)))
+    lo = _hex_to_rgb(rule.get('low_color', '#FF0000'))
+    hi = _hex_to_rgb(rule.get('high_color', '#00B050'))
+    r = round(lo[0] + (hi[0] - lo[0]) * t)
+    g = round(lo[1] + (hi[1] - lo[1]) * t)
+    b = round(lo[2] + (hi[2] - lo[2]) * t)
+    return '#{:02X}{:02X}{:02X}'.format(r, g, b)
+
+
+def parse_pct_string(value):
+    """'61.54%' -> 61.54 ; '61.54' -> 61.54 ; '' / None -> None."""
+    if value is None:
+        return None
+    s = str(value).strip().rstrip('%')
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None

@@ -197,7 +197,17 @@ def api_export_pdf():
         for g in data.get(list_key, []):
             g['photo_fs_path'] = excel_writer._photo_fs_path(g.get('photo'))
 
-    html_str = render_template('print.html', data=data, title_date=title_date)
+    # Occupancy % gradient — same rule/colours excel_writer uses, computed
+    # once here so print.html (which can't do colour math itself) just
+    # applies a precomputed hex string per day.
+    config = report_config.load_published()
+    occ_rule = config.get('occupancy_color_rule', {})
+    occupancy_colors = [
+        report_config.occupancy_color(report_config.parse_pct_string(v), occ_rule)
+        for v in data.get('forecast', {}).get('occupancy_pct', [])
+    ]
+
+    html_str = render_template('print.html', data=data, title_date=title_date, occupancy_colors=occupancy_colors)
 
     import weasyprint
     pdf_bytes = weasyprint.HTML(string=html_str, base_url=request.url_root).write_pdf()

@@ -53,7 +53,13 @@
   {% for label, key in [('Occupancy %','occupancy_pct'),('Rooms Occupied (excl house use & comp)','rooms_occupied'),('ADR','adr'),('Arrivals','arrivals'),('Departures','departures')] %}
   <tr>
     <td style="background:#92D050;font-weight:bold;">{{ label }}</td>
-    {% for v in data.forecast[key] %}<td class="val-cell">{{ v }}</td>{% endfor %}
+    {% for v in data.forecast[key] %}
+      {% if key == 'occupancy_pct' and occupancy_colors and occupancy_colors[loop.index0] %}
+        <td class="val-cell" style="background:{{ occupancy_colors[loop.index0] }};">{{ v }}</td>
+      {% else %}
+        <td class="val-cell">{{ v }}</td>
+      {% endif %}
+    {% endfor %}
   </tr>
   {% endfor %}
 

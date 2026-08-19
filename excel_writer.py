@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 import rules
 import data_store
+import report_config
 
 # ---------------------------------------------------------------------------
 # Colours / styles lifted directly from the source template
@@ -160,11 +161,15 @@ def _section_header(ws, row, text, span_end='I', full_border=True):
             _set(ws, f'{cl}{row}', None, None, GREEN_FILL, None, b)
 
 
-def build_workbook(data):
+def build_workbook(data, config=None):
     """
     data: the day's JSON dict (see data_store.empty_day for schema).
+    config: the published report_config dict (for the occupancy % colour
+    gradient). Falls back to the live published config if not given.
     Returns an in-memory .xlsx (BytesIO).
     """
+    if config is None:
+        config = report_config.load_published()
     wb = Workbook()
     ws = wb.active
     ws.title = 'Accomodation'
@@ -201,6 +206,7 @@ def build_workbook(data):
         (7, 'Arrivals', fc.get('arrivals', [])),
         (8, 'Departures ', fc.get('departures', [])),
     ]
+    occ_rule = (config or {}).get('occupancy_color_rule', {})
     for row, label, values in metric_rows:
         _set(ws, f'A{row}', label, LABEL_FONT, GREEN_FILL, CENTER, _border(MEDIUM, THIN, THIN, THIN))
         for i in range(7):
@@ -208,6 +214,11 @@ def build_workbook(data):
             v = values[i] if i < len(values) and values[i] != '' else None
             _set(ws, f'{col}{row}', v, VALUE_FONT, GREY_FILL, CENTER,
                  _border(THIN, MEDIUM if i == 6 else THIN, THIN, THIN))
+            if label == 'Occupancy %' and v:
+                pct = report_config.parse_pct_string(v)
+                hexcolor = report_config.occupancy_color(pct, occ_rule)
+                if hexcolor:
+                    ws[f'{col}{row}'].fill = _fill('FF' + hexcolor.lstrip('#'))
 
     # ---- AM MOD / PM MOD / NM / Weekend EOD  +  House Status / Weather / Enrollments ----
     _set(ws, 'A9', 'AM MOD:', LABEL_FONT, GREY_FILL, Alignment(horizontal='left', vertical='top', wrap_text=True), _border(MEDIUM, THIN, MEDIUM, THIN))

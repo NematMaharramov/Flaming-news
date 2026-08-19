@@ -59,10 +59,13 @@
 
   <div class="card">
     <h2>Occupancy Rəng Qaydası</h2>
-    <div class="desc">7 Day Forecast-da Occupancy % xanası bu aralığa görə qırmızıdan yaşıla keçəcək (gələcək tətbiq — Part E-də HTML-ə bağlanacaq).</div>
+    <div class="desc">7 Day Forecast-da Occupancy % xanası bu aralığa görə qırmızıdan yaşıla keçir (gradient) — canlı hesabatda, PDF-də və Excel-də eyni cür görünür.</div>
     <div class="row"><label>Aktiv</label><input type="checkbox" id="occEnabled"></div>
-    <div class="row"><label>0% rəngi</label><input type="color" id="occLowColor"></div>
-    <div class="row"><label>100% rəngi</label><input type="color" id="occHighColor"></div>
+    <div class="row"><label>Aşağı hədd (%)</label><input type="number" id="occLowPct" min="0" max="100"></div>
+    <div class="row"><label>Aşağı hədd rəngi</label><input type="color" id="occLowColor"></div>
+    <div class="row"><label>Yuxarı hədd (%)</label><input type="number" id="occHighPct" min="0" max="100"></div>
+    <div class="row"><label>Yuxarı hədd rəngi</label><input type="color" id="occHighColor"></div>
+    <div class="row"><label>Önizləmə</label><div id="occPreview" style="flex:1;height:24px;border-radius:4px;border:1px solid #bbb;"></div></div>
   </div>
 
   <div class="card">
@@ -139,11 +142,21 @@ document.getElementById('addDefaultBtn').addEventListener('click', () => {
 function renderOccupancy() {
   const r = DRAFT.occupancy_color_rule || {};
   document.getElementById('occEnabled').checked = !!r.enabled;
+  document.getElementById('occLowPct').value = r.low_pct != null ? r.low_pct : 0;
   document.getElementById('occLowColor').value = r.low_color || '#FF0000';
+  document.getElementById('occHighPct').value = r.high_pct != null ? r.high_pct : 100;
   document.getElementById('occHighColor').value = r.high_color || '#00B050';
-  document.getElementById('occEnabled').onchange = (e) => { DRAFT.occupancy_color_rule.enabled = e.target.checked; };
-  document.getElementById('occLowColor').oninput = (e) => { DRAFT.occupancy_color_rule.low_color = e.target.value; };
-  document.getElementById('occHighColor').oninput = (e) => { DRAFT.occupancy_color_rule.high_color = e.target.value; };
+  document.getElementById('occEnabled').onchange = (e) => { DRAFT.occupancy_color_rule.enabled = e.target.checked; updateOccPreview(); };
+  document.getElementById('occLowPct').oninput = (e) => { DRAFT.occupancy_color_rule.low_pct = parseFloat(e.target.value)||0; updateOccPreview(); };
+  document.getElementById('occLowColor').oninput = (e) => { DRAFT.occupancy_color_rule.low_color = e.target.value; updateOccPreview(); };
+  document.getElementById('occHighPct').oninput = (e) => { DRAFT.occupancy_color_rule.high_pct = parseFloat(e.target.value)||100; updateOccPreview(); };
+  document.getElementById('occHighColor').oninput = (e) => { DRAFT.occupancy_color_rule.high_color = e.target.value; updateOccPreview(); };
+  updateOccPreview();
+}
+function updateOccPreview() {
+  const r = DRAFT.occupancy_color_rule || {};
+  document.getElementById('occPreview').style.background =
+    `linear-gradient(to right, ${r.low_color||'#FF0000'}, ${r.high_color||'#00B050'})`;
 }
 
 function renderSections() {
