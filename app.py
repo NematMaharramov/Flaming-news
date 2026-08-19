@@ -31,6 +31,11 @@ def admin_page():
     return render_template('admin.html')
 
 
+@app.route('/admin/editor', methods=['GET'])
+def admin_editor_page():
+    return render_template('admin_editor.html')
+
+
 @app.route('/', methods=['GET'])
 def index():
     iso_date = request.args.get('date') or date.today().isoformat()

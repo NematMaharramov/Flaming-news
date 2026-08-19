@@ -398,6 +398,21 @@ function renderForecast() {
 // ---------- Generic config-driven section rendering (table + parallel_lines) ----------
 function sectionById(id) { return (CONFIG.sections||[]).find(s => s.id === id); }
 
+// Applies an admin-configured style override (section.style / column.style)
+// as inline CSS — same shape the Visual Editor writes, so what's styled
+// there matches what renders here (and in print.html for PDF).
+function applyStyle(el, style) {
+  if (!style) return;
+  if (style.bg) el.style.background = style.bg;
+  if (style.color) el.style.color = style.color;
+  if (style.bold) el.style.fontWeight = 'bold';
+  if (style.italic) el.style.fontStyle = 'italic';
+  if (style.underline) el.style.textDecoration = 'underline';
+  if (style.font_size) el.style.fontSize = style.font_size + 'px';
+  if (style.align) el.style.textAlign = style.align;
+  if (style.padding != null) el.style.padding = style.padding + 'px';
+}
+
 function cellForColumn(col, listKey, idx, row) {
   const path = `${listKey}.${idx}.${col.key}`;
   switch (col.kind) {
@@ -426,6 +441,7 @@ function renderTableSection(section, container) {
   const titleTr = document.createElement('tr');
   titleTr.className = 'section-row';
   const titleTd = document.createElement('td'); titleTd.colSpan = 9; titleTd.textContent = section.title;
+  applyStyle(titleTd, section.style);
   titleTr.appendChild(titleTd); table.appendChild(titleTr);
 
   const headTr = document.createElement('tr');
@@ -435,6 +451,7 @@ function renderTableSection(section, container) {
     th.textContent = col.label;
     if (col.colspan > 1) th.colSpan = col.colspan;
     if (col.width_pct) th.style.width = col.width_pct + '%';
+    applyStyle(th, col.style);
     headTr.appendChild(th);
   });
   table.appendChild(headTr);
@@ -479,7 +496,9 @@ function renderParallelLinesSection(section, container) {
   table.className = 'grid'; table.style.marginTop = '8px';
   const headTr = document.createElement('tr');
   const tdL = document.createElement('td'); tdL.colSpan = section.left.colspan; tdL.className = 'section-row'; tdL.style.padding = '6px'; tdL.textContent = section.left.label;
+  applyStyle(tdL, section.style);
   const tdR = document.createElement('td'); tdR.colSpan = section.right.colspan; tdR.className = 'section-row'; tdR.style.padding = '6px'; tdR.textContent = section.right.label;
+  applyStyle(tdR, section.style);
   headTr.appendChild(tdL); headTr.appendChild(tdR); table.appendChild(headTr);
   const tbody = document.createElement('tbody'); tbody.id = 'section-body-' + section.id;
   table.appendChild(tbody);
