@@ -154,7 +154,7 @@
 <div class="sheet" id="sheet1">
   <table class="grid">
     <tr class="title-row"><td colspan="9" id="titleCell">FLAMING NEWS FOR ...</td></tr>
-    <tr class="title-row"><td colspan="9">Quote of the Day : “<input class="cell" id="quoteInput" style="color:var(--red);font-weight:bold;font-size:16px;text-align:center;" placeholder="Quote of the day"></input>”</td></tr>
+    <tr class="title-row"><td colspan="9" id="quoteRowCell"><span id="quotePrefix">Quote of the Day : “</span><input class="cell" id="quoteInput" placeholder="Quote of the day"><span id="quoteSuffix">”</span></td></tr>
   </table>
 
   <!-- Config-driven fixed sections: 7 Day Forecast, AM MOD/House Status/Weather/Enrollments, Goals -->
@@ -223,11 +223,34 @@ function fmtTitleDate(iso) {
   return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Title/Quote banner rows are config-driven (Part F1) — label_template and
+// style come from CONFIG.title_row / CONFIG.quote_row instead of being
+// hardcoded here, so the Visual Editor can re-word and restyle them.
+function fillTemplate(template, placeholder, value) {
+  return (template || '').split(placeholder).join(value == null ? '' : value);
+}
 function refreshTitles() {
-  const t = 'FLAMING NEWS FOR ' + fmtTitleDate(document.getElementById('dateInput').value);
+  const titleTemplate = (CONFIG.title_row && CONFIG.title_row.label_template) || 'FLAMING NEWS FOR {date}';
+  const quoteTemplate = (CONFIG.quote_row && CONFIG.quote_row.label_template) || 'Quote of the Day : \u201c{quote}\u201d';
+  const t = fillTemplate(titleTemplate, '{date}', fmtTitleDate(document.getElementById('dateInput').value));
   document.getElementById('titleCell').textContent = t;
   document.getElementById('titleCell2').textContent = t;
-  document.getElementById('quoteCell2').textContent = 'Quote of the Day : “' + (STATE.quote || '') + '”';
+  document.getElementById('quoteCell2').textContent = fillTemplate(quoteTemplate, '{quote}', STATE.quote || '');
+
+  // The sheet-1 quote row keeps its live <input> inline, so instead of
+  // overwriting the cell it splits the template around {quote} into a
+  // prefix/suffix shown either side of the editable field.
+  const quoteParts = quoteTemplate.split('{quote}');
+  document.getElementById('quotePrefix').textContent = quoteParts[0] || '';
+  document.getElementById('quoteSuffix').textContent = quoteParts.length > 1 ? quoteParts.slice(1).join('{quote}') : '';
+
+  const titleStyle = CONFIG.title_row && CONFIG.title_row.style;
+  const quoteStyle = CONFIG.quote_row && CONFIG.quote_row.style;
+  applyStyle(document.getElementById('titleCell'), titleStyle);
+  applyStyle(document.getElementById('titleCell2'), titleStyle);
+  applyStyle(document.getElementById('quoteRowCell'), quoteStyle);
+  applyStyle(document.getElementById('quoteCell2'), quoteStyle);
+  applyStyle(document.getElementById('quoteInput'), quoteStyle, {skipBg: true});
 }
 
 // ---------- date / time auto-formatting ----------
@@ -359,14 +382,7 @@ function renderForecast() {
     tr.appendChild(l);
     for (let i=0;i<7;i++) {
       const inputEl = cellInput(`forecast.${metric.key}.${i}`, fc[metric.key][i]);
-      if (metric.style) {
-        const s = metric.style;
-        if (s.color) inputEl.style.color = s.color;
-        if (s.bold) inputEl.style.fontWeight = 'bold';
-        if (s.italic) inputEl.style.fontStyle = 'italic';
-        if (s.underline) inputEl.style.textDecoration = 'underline';
-        if (s.font_size) inputEl.style.fontSize = s.font_size + 'px';
-      }
+      applyStyle(inputEl, metric.style, {skipBg: true});
       if (metric.key === 'occupancy_pct') {
         applyOccupancyColor(inputEl);
         inputEl.addEventListener('input', () => applyOccupancyColor(inputEl));
@@ -433,14 +449,7 @@ function renderFieldsFixed(sectionId, containerId, colsPerRow) {
       const valueTd = document.createElement('td');
       valueTd.style.background = 'var(--grey)';
       const valueInput = cellInput(f.data_path, getPath(STATE, f.data_path));
-      if (f.style) {
-        const s = f.style;
-        if (s.color) valueInput.style.color = s.color;
-        if (s.bold) valueInput.style.fontWeight = 'bold';
-        if (s.italic) valueInput.style.fontStyle = 'italic';
-        if (s.underline) valueInput.style.textDecoration = 'underline';
-        if (s.font_size) valueInput.style.fontSize = s.font_size + 'px';
-      }
+      applyStyle(valueInput, f.style, {skipBg: true});
       valueTd.appendChild(valueInput);
       tr.appendChild(labelTd); tr.appendChild(valueTd);
     }
@@ -454,20 +463,36 @@ function renderGoals() { renderFieldsFixed('goals', 'goalsSectionContainer', 2);
 // ---------- Generic config-driven section rendering (table + parallel_lines) ----------
 function sectionById(id) { return (CONFIG.sections||[]).find(s => s.id === id); }
 
-// Applies an admin-configured style override (section.style / column.style)
-// as inline CSS — same shape the Visual Editor writes, so what's styled
-// there matches what renders here (and in print.html for PDF).
-function applyStyle(el, style) {
-  if (!style) return;
-  if (style.bg) el.style.background = style.bg;
+// Applies an admin-configured style override (section.style / column
+// header_style|cell_style / title_row.style / quote_row.style) as inline
+// CSS — same shape the Visual Editor writes, so what's styled there
+// matches what renders here. Pass {skipBg:true} for inline data cells
+// where painting every row solid would read as noise (background still
+// applies to header cells and section titles).
+function applyStyle(el, style, opts) {
+  if (!style || !el) return;
+  opts = opts || {};
+  if (style.bg && !opts.skipBg) el.style.background = style.bg;
   if (style.color) el.style.color = style.color;
-  if (style.bold) el.style.fontWeight = 'bold';
+  if (style.font_family) el.style.fontFamily = style.font_family;
+  if (style.font_weight) el.style.fontWeight = style.font_weight;
+  else if (style.bold) el.style.fontWeight = 'bold';
   if (style.italic) el.style.fontStyle = 'italic';
   if (style.underline) el.style.textDecoration = 'underline';
   if (style.font_size) el.style.fontSize = style.font_size + 'px';
   if (style.align) el.style.textAlign = style.align;
   if (style.padding != null) el.style.padding = style.padding + 'px';
+  if (style.line_height) el.style.lineHeight = style.line_height;
+  if (style.border_width != null && style.border_color) {
+    el.style.border = `${style.border_width}px ${style.border_style || 'solid'} ${style.border_color}`;
+  }
 }
+
+// Column style resolution: prefer the new header/cell-specific style,
+// fall back to the legacy shared `style` so older configs (or admin
+// edits made before Part F1) keep rendering exactly as before.
+function colHeaderStyle(col) { return col.header_style || col.style; }
+function colCellStyle(col) { return col.cell_style || col.style; }
 
 function cellForColumn(col, listKey, idx, row) {
   const path = `${listKey}.${idx}.${col.key}`;
@@ -485,16 +510,10 @@ function cellForColumn(col, listKey, idx, row) {
   // header) so "make this column's text bigger" affects what's actually
   // typed, not just the label above it. Background is intentionally left
   // off inputs (it would paint every data row solid, which reads as noise)
-  // — it still applies to the header cell in renderTableSection.
-  if (col.style && el && el.style) {
-    const s = col.style;
-    if (s.color) el.style.color = s.color;
-    if (s.bold) el.style.fontWeight = 'bold';
-    if (s.italic) el.style.fontStyle = 'italic';
-    if (s.underline) el.style.textDecoration = 'underline';
-    if (s.font_size) el.style.fontSize = s.font_size + 'px';
-    if (s.align) el.style.textAlign = s.align;
-  }
+  // — it still applies to the header cell in renderTableSection. Cells use
+  // cell_style (falling back to the legacy shared style) so header and
+  // data-row styling can differ, per Part F1.
+  applyStyle(el, colCellStyle(col), {skipBg: true});
   return el;
 }
 
@@ -524,7 +543,7 @@ function renderTableSection(section, container) {
     th.textContent = col.label;
     if (col.colspan > 1) th.colSpan = col.colspan;
     if (col.width_pct) th.style.width = col.width_pct + '%';
-    applyStyle(th, col.style);
+    applyStyle(th, colHeaderStyle(col));
     headTr.appendChild(th);
   });
   table.appendChild(headTr);

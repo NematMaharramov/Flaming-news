@@ -46,7 +46,18 @@ def default_config():
     sections: ordered list describing every part of the report.
     - type='table': fully driven by `columns` — admin can add/remove/
       resize/style columns, or add/remove whole sections, without touching
-      application code.
+      application code. Each column may carry `header_style` (the label
+      row) and `cell_style` (the data row) separately — see Part F1. A
+      legacy single `style` key is still read as a fallback for either
+      when the specific one isn't set, so older configs keep rendering
+      unchanged.
+    - Every style object (section.style, column.header_style/cell_style,
+      fixed-row .style, title_row.style, quote_row.style) shares the same
+      shape: bg, color, font_family, font_size, font_weight (or the older
+      boolean `bold`), italic, underline, align, padding, line_height,
+      border_width, border_color, border_style. Consumers (index.html,
+      admin_editor.html) apply whichever keys are present and ignore the
+      rest, so new keys can be added without a schema migration.
     - type='parallel_lines': the Birthday/Anniversary style (two free-text
       columns, no headers per line).
     - type='fixed': matrix-shaped blocks (7 Day Forecast, the AM MOD/
@@ -60,7 +71,7 @@ def default_config():
       e.g. adding a 'RevPAR' forecast metric or an 'NPS Goal' field.
     """
     return {
-        'schema_version': 3,
+        'schema_version': 4,
         'updated_at': None,
         'static_defaults': {
             'fairmont_goals.ces_goal': 90,
@@ -73,6 +84,26 @@ def default_config():
             'low_color': '#FF0000',
             'high_pct': 100,
             'high_color': '#00B050',
+        },
+        # The two banner rows repeated at the top of every sheet. Previously
+        # hardcoded ('FLAMING NEWS FOR ...' / 'Quote of the Day : ...') in
+        # templates/index.html; now config-driven (Part F1) so the Visual
+        # Editor can restyle and re-word them like any other section.
+        # label_template placeholders: {date} for title_row, {quote} for
+        # quote_row — substituted client-side in templates/index.html.
+        'title_row': {
+            'label_template': 'FLAMING NEWS FOR {date}',
+            'style': {
+                'bg': '#E7E6E6', 'color': '#FF0000', 'bold': True,
+                'font_size': 20, 'align': 'center', 'padding': 10,
+            },
+        },
+        'quote_row': {
+            'label_template': 'Quote of the Day : \u201c{quote}\u201d',
+            'style': {
+                'bg': '#E7E6E6', 'color': '#FF0000', 'bold': True,
+                'font_size': 16, 'align': 'center', 'padding': 10,
+            },
         },
         'sections': [
             {
@@ -238,6 +269,28 @@ def _migrate(cfg):
         cfg['sections'] = merged
         cfg['schema_version'] = 3
         version = 3
+
+    if version < 4:
+        # Part F1 — Visual Editor Style System.
+        # (a) title_row/quote_row are new; stamp in the factory defaults for
+        #     configs that predate them.
+        # (b) table columns now support separate header_style/cell_style
+        #     (previously a single 'style' applied to both header and data
+        #     cell). Any admin-set 'style' is copied into both so existing
+        #     designs look identical after the upgrade; 'style' itself is
+        #     left in place as a legacy fallback (see report_config.py
+        #     column-style resolution used by index.html/admin_editor.html).
+        fresh = default_config()
+        cfg.setdefault('title_row', fresh['title_row'])
+        cfg.setdefault('quote_row', fresh['quote_row'])
+        for s in cfg.get('sections', []):
+            if s.get('type') == 'table':
+                for col in s.get('columns', []):
+                    if col.get('style') and 'header_style' not in col and 'cell_style' not in col:
+                        col['header_style'] = dict(col['style'])
+                        col['cell_style'] = dict(col['style'])
+        cfg['schema_version'] = 4
+        version = 4
 
     return cfg
 

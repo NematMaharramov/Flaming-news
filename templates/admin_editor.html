@@ -42,7 +42,7 @@
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; display:none; align-items:center; justify-content:center; }
   .modal-overlay.open { display:flex; }
-  .modal-box { background:#fff; border-radius:8px; padding:20px; width:380px; max-height:85vh; overflow:auto; }
+  .modal-box { background:#fff; border-radius:8px; padding:20px; width:420px; max-height:85vh; overflow:auto; }
   .modal-box h3 { margin:0 0 14px; font-size:15px; }
   .field-row { margin-bottom:10px; }
   .field-row label { display:block; font-size:12px; color:#555; margin-bottom:3px; }
@@ -50,11 +50,19 @@
     width:100%; padding:6px 8px; border:1px solid #bbb; border-radius:4px; font-size:13px;
   }
   .field-row input[type=color] { width:100%; height:32px; border:1px solid #bbb; padding:0; }
+  .field-row-pair { display:flex; gap:10px; }
+  .field-row-pair .field-row { flex:1; }
   .toggle-row { display:flex; gap:14px; margin-bottom:10px; }
   .toggle-row label { font-size:12px; display:flex; align-items:center; gap:5px; }
   .modal-actions { display:flex; gap:8px; margin-top:16px; justify-content:space-between; }
   .toast { position:fixed; bottom:20px; right:20px; background:#2e7d32; color:#fff; padding:10px 16px; border-radius:4px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.2); display:none; z-index:300; }
   .toast.error { background:#c0392b; }
+  .style-target-tabs { display:flex; gap:0; margin-bottom:12px; border:1px solid #bbb; border-radius:4px; overflow:hidden; }
+  .style-target-tabs button { flex:1; border:none; background:#f0f0f0; padding:7px 4px; font-size:12px; cursor:pointer; }
+  .style-target-tabs button.active { background:#4472C4; color:#fff; }
+  .section-divider { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:#888; margin:14px 0 6px; border-top:1px solid #eee; padding-top:10px; }
+  .banner-row { background:var(--grey); font-weight:bold; text-align:center; padding:6px; cursor:pointer; }
+  .banner-row:hover { outline:2px solid #4472C4; }
 </style>
 </head>
 <body>
@@ -64,6 +72,7 @@
   <a href="/admin">← Admin Panel</a>
   <a href="/">Hesabat</a>
   <div class="spacer"></div>
+  <button class="btn" id="titleQuoteBtn">🏷️ Title / Quote</button>
   <button class="btn" id="saveDraftBtn">💾 Draft-ı saxla</button>
   <button class="btn primary" id="publishBtn">🚀 Publish</button>
 </div>
@@ -89,8 +98,21 @@
       <label><input type="checkbox" id="secItalic"> Italic</label>
       <label><input type="checkbox" id="secUnderline"> Underline</label>
     </div>
-    <div class="field-row"><label>Şrift ölçüsü (px) — başlıq</label><input type="number" id="secFontSize" min="8" max="40"></div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ailəsi</label><select id="secFontFamily"></select></div>
+      <div class="field-row"><label>Şrift qalınlığı</label><select id="secFontWeight"></select></div>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ölçüsü (px) — başlıq</label><input type="number" id="secFontSize" min="8" max="40"></div>
+      <div class="field-row"><label>Sətir hündürlüyü (line-height)</label><input type="number" id="secLineHeight" min="0.8" max="3" step="0.1" placeholder="məs. 1.2"></div>
+    </div>
     <div class="field-row"><label>Sətir hündürlüyü (px) — bu bölmənin bütün sətirləri</label><input type="number" id="secRowHeight" min="16" max="120" placeholder="avtomatik"></div>
+    <div class="section-divider">Border</div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>En (px)</label><input type="number" id="secBorderWidth" min="0" max="10" placeholder="məs. 1"></div>
+      <div class="field-row"><label>Rəng</label><input type="color" id="secBorderColor"></div>
+    </div>
+    <div class="field-row"><label>Növ</label><select id="secBorderStyle"></select></div>
     <div class="modal-actions">
       <button class="btn danger small" id="secDeleteBtn">🗑 Bölməni sil</button>
       <div>
@@ -118,17 +140,40 @@
         <option value="remarks">Remarks (review-highlight dəstəkli)</option>
       </select>
     </div>
-    <div class="field-row"><label>Arxa fon rəngi</label><input type="color" id="colBg"></div>
-    <div class="field-row"><label>Mətn rəngi</label><input type="color" id="colColor"></div>
+    <div class="section-divider">Stil</div>
+    <div class="style-target-tabs">
+      <button type="button" id="colStyleTabHeader" class="active">Başlıq (Header)</button>
+      <button type="button" id="colStyleTabCell">Data xanası</button>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Arxa fon rəngi</label><input type="color" id="colBg"></div>
+      <div class="field-row"><label>Mətn rəngi</label><input type="color" id="colColor"></div>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ailəsi</label><select id="colFontFamily"></select></div>
+      <div class="field-row"><label>Şrift qalınlığı</label><select id="colFontWeight"></select></div>
+    </div>
     <div class="toggle-row">
       <label><input type="checkbox" id="colBold"> Bold</label>
       <label><input type="checkbox" id="colItalic"> Italic</label>
       <label><input type="checkbox" id="colUnderline"> Underline</label>
     </div>
-    <div class="field-row"><label>Alignment</label>
-      <select id="colAlign"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Alignment</label>
+        <select id="colAlign"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
+      </div>
+      <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="colFontSize" min="8" max="40"></div>
     </div>
-    <div class="field-row"><label>Padding (px)</label><input type="number" id="colPadding" min="0" max="20"></div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Padding (px)</label><input type="number" id="colPadding" min="0" max="20"></div>
+      <div class="field-row"><label>Sətir hündürlüyü (line-height)</label><input type="number" id="colLineHeight" min="0.8" max="3" step="0.1" placeholder="məs. 1.2"></div>
+    </div>
+    <div class="section-divider">Border</div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>En (px)</label><input type="number" id="colBorderWidth" min="0" max="10" placeholder="məs. 1"></div>
+      <div class="field-row"><label>Rəng</label><input type="color" id="colBorderColor"></div>
+    </div>
+    <div class="field-row"><label>Növ</label><select id="colBorderStyle"></select></div>
     <div class="modal-actions">
       <button class="btn danger small" id="colDeleteBtn">🗑 Sütunu sil</button>
       <div>
@@ -155,12 +200,73 @@
       <label><input type="checkbox" id="fixedRowItalic"> Italic</label>
       <label><input type="checkbox" id="fixedRowUnderline"> Underline</label>
     </div>
-    <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="fixedRowFontSize" min="8" max="40"></div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ailəsi</label><select id="fixedRowFontFamily"></select></div>
+      <div class="field-row"><label>Şrift qalınlığı</label><select id="fixedRowFontWeight"></select></div>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="fixedRowFontSize" min="8" max="40"></div>
+      <div class="field-row"><label>Sətir hündürlüyü (line-height)</label><input type="number" id="fixedRowLineHeight" min="0.8" max="3" step="0.1" placeholder="məs. 1.2"></div>
+    </div>
+    <div class="section-divider">Border</div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>En (px)</label><input type="number" id="fixedRowBorderWidth" min="0" max="10" placeholder="məs. 1"></div>
+      <div class="field-row"><label>Rəng</label><input type="color" id="fixedRowBorderColor"></div>
+    </div>
+    <div class="field-row"><label>Növ</label><select id="fixedRowBorderStyle"></select></div>
     <div class="modal-actions">
       <button class="btn danger small" id="fixedRowDeleteBtn">🗑 Sətri sil</button>
       <div>
         <button class="btn small" id="fixedRowCancelBtn">Bağla</button>
         <button class="btn primary small" id="fixedRowApplyBtn">Tətbiq et</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============ Title / Quote row modal ============ -->
+<div class="modal-overlay" id="titleQuoteModal">
+  <div class="modal-box" style="width:460px;">
+    <h3>Title və Quote sətirləri</h3>
+
+    <div class="section-divider">Title sətri</div>
+    <div class="field-row"><label>Mətn şablonu (<code>{date}</code> tarixlə əvəz olunur)</label><input type="text" id="tqTitleTemplate"></div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Arxa fon rəngi</label><input type="color" id="tqTitleBg"></div>
+      <div class="field-row"><label>Mətn rəngi</label><input type="color" id="tqTitleColor"></div>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="tqTitleFontSize" min="8" max="60"></div>
+      <div class="field-row"><label>Padding (px)</label><input type="number" id="tqTitlePadding" min="0" max="30"></div>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="tqTitleBold"> Bold</label>
+      <label><input type="checkbox" id="tqTitleItalic"> Italic</label>
+      <label><input type="checkbox" id="tqTitleUnderline"> Underline</label>
+    </div>
+
+    <div class="section-divider">Quote sətri</div>
+    <div class="field-row"><label>Mətn şablonu (<code>{quote}</code> günün sitatı ilə əvəz olunur)</label><input type="text" id="tqQuoteTemplate"></div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Arxa fon rəngi</label><input type="color" id="tqQuoteBg"></div>
+      <div class="field-row"><label>Mətn rəngi</label><input type="color" id="tqQuoteColor"></div>
+    </div>
+    <div class="field-row-pair">
+      <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="tqQuoteFontSize" min="8" max="60"></div>
+      <div class="field-row"><label>Padding (px)</label><input type="number" id="tqQuotePadding" min="0" max="30"></div>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="tqQuoteBold"> Bold</label>
+      <label><input type="checkbox" id="tqQuoteItalic"> Italic</label>
+      <label><input type="checkbox" id="tqQuoteUnderline"> Underline</label>
+    </div>
+
+    <div class="modal-actions">
+      <div></div>
+      <div>
+        <button class="btn small" id="tqCancelBtn">Bağla</button>
+        <button class="btn primary small" id="tqApplyBtn">Tətbiq et</button>
       </div>
     </div>
   </div>
@@ -180,18 +286,47 @@ function toast(msg, isError=false) {
   setTimeout(()=>{ t.style.display='none'; }, 2800);
 }
 
+// Same style shape everywhere: section.style, column.header_style /
+// column.cell_style, fixed-row.style, title_row.style, quote_row.style.
+// See report_config.default_config() docstring for the full field list.
 function styleToCss(style) {
   style = style || {};
   let css = '';
   if (style.bg) css += `background:${style.bg};`;
   if (style.color) css += `color:${style.color};`;
-  if (style.bold) css += `font-weight:bold;`;
+  if (style.font_family) css += `font-family:${style.font_family};`;
+  if (style.font_weight) css += `font-weight:${style.font_weight};`;
+  else if (style.bold) css += `font-weight:bold;`;
   if (style.italic) css += `font-style:italic;`;
   if (style.underline) css += `text-decoration:underline;`;
   if (style.font_size) css += `font-size:${style.font_size}px;`;
   if (style.align) css += `text-align:${style.align};`;
   if (style.padding != null) css += `padding:${style.padding}px;`;
+  if (style.line_height) css += `line-height:${style.line_height};`;
+  if (style.border_width != null && style.border_color) {
+    css += `border:${style.border_width}px ${style.border_style || 'solid'} ${style.border_color};`;
+  }
   return css;
+}
+
+// Column style resolution — prefer the header/cell-specific style, fall
+// back to the legacy shared `style` (pre-Part-F1 configs / not-yet-edited
+// columns) so nothing looks different until an admin actually changes it.
+function colHeaderStyle(col) { return col.header_style || col.style || {}; }
+function colCellStyle(col) { return col.cell_style || col.style || {}; }
+
+const FONT_FAMILIES = ['', 'Calibri', 'Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Tahoma', 'Courier New'];
+const FONT_WEIGHTS = ['', 'normal', 'bold', '500', '600', '700', '800'];
+const BORDER_STYLES = ['solid', 'dashed', 'dotted', 'double'];
+
+function fontFamilyOptions(selected) {
+  return FONT_FAMILIES.map(f => `<option value="${f}" ${f===(selected||'')?'selected':''}>${f || '(default)'}</option>`).join('');
+}
+function fontWeightOptions(selected) {
+  return FONT_WEIGHTS.map(w => `<option value="${w}" ${w===(selected||'')?'selected':''}>${w || '(default / bold checkbox)'}</option>`).join('');
+}
+function borderStyleOptions(selected) {
+  return BORDER_STYLES.map(b => `<option value="${b}" ${b===(selected||'solid')?'selected':''}>${b}</option>`).join('');
 }
 
 const PLACEHOLDER = {
@@ -210,9 +345,40 @@ function render() {
   renderSheet(2, 'sheetView2');
 }
 
+function renderTitleQuotePreview(container) {
+  const table = document.createElement('table');
+  table.className = 'grid';
+  table.style.marginBottom = '10px';
+
+  const titleRow = DRAFT.title_row || {};
+  const quoteRow = DRAFT.quote_row || {};
+  const titleTr = document.createElement('tr');
+  const titleTd = document.createElement('td');
+  titleTd.colSpan = 9; titleTd.className = 'banner-row';
+  titleTd.textContent = (titleRow.label_template || 'FLAMING NEWS FOR {date}').replace('{date}', '16 August 2026');
+  titleTd.setAttribute('style', titleTd.getAttribute('style') + ';' + styleToCss(titleRow.style));
+  titleTd.title = 'Title/Quote sətirlərini redaktə et';
+  titleTd.addEventListener('click', openTitleQuoteModal);
+  titleTr.appendChild(titleTd);
+  table.appendChild(titleTr);
+
+  const quoteTr = document.createElement('tr');
+  const quoteTd = document.createElement('td');
+  quoteTd.colSpan = 9; quoteTd.className = 'banner-row';
+  quoteTd.textContent = (quoteRow.label_template || 'Quote of the Day : \u201c{quote}\u201d').replace('{quote}', 'Sample quote text');
+  quoteTd.setAttribute('style', quoteTd.getAttribute('style') + ';' + styleToCss(quoteRow.style));
+  quoteTd.title = 'Title/Quote sətirlərini redaktə et';
+  quoteTd.addEventListener('click', openTitleQuoteModal);
+  quoteTr.appendChild(quoteTd);
+  table.appendChild(quoteTr);
+
+  container.appendChild(table);
+}
+
 function renderSheet(sheetNum, containerId) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
+  renderTitleQuotePreview(container);
   const sections = (DRAFT.sections||[])
     .map((s,i)=>({...s, _idx:i}))
     .filter(s => s.sheet === sheetNum)
@@ -256,7 +422,7 @@ function renderSheet(sheetNum, containerId) {
         th.textContent = col.label;
         th.style.width = (col.width_pct||10) + '%';
         if (col.colspan > 1) th.colSpan = col.colspan;
-        th.setAttribute('style', th.getAttribute('style') + ';' + styleToCss(col.style));
+        th.setAttribute('style', th.getAttribute('style') + ';' + styleToCss(colHeaderStyle(col)));
         th.addEventListener('click', () => openColumnModal(section._idx, ci));
         headTr.appendChild(th);
       });
@@ -274,7 +440,7 @@ function renderSheet(sheetNum, containerId) {
       (section.columns||[]).forEach(col => {
         const td = document.createElement('td');
         td.className = 'placeholder-cell';
-        td.setAttribute('style', styleToCss(col.style));
+        td.setAttribute('style', styleToCss(colCellStyle(col)));
         if (col.kind === 'vip_code') {
           const b = document.createElement('span'); b.className='badge';
           b.style.cssText = 'background:#70AD47;color:#000;'; b.textContent = 'SA';
@@ -380,8 +546,14 @@ function openSectionModal(idx) {
   document.getElementById('secBold').checked = !!st.bold;
   document.getElementById('secItalic').checked = !!st.italic;
   document.getElementById('secUnderline').checked = !!st.underline;
+  document.getElementById('secFontFamily').innerHTML = fontFamilyOptions(st.font_family);
+  document.getElementById('secFontWeight').innerHTML = fontWeightOptions(st.font_weight);
   document.getElementById('secFontSize').value = st.font_size || '';
+  document.getElementById('secLineHeight').value = st.line_height || '';
   document.getElementById('secRowHeight').value = s.row_height || '';
+  document.getElementById('secBorderWidth').value = st.border_width != null ? st.border_width : '';
+  document.getElementById('secBorderColor').value = st.border_color || '#000000';
+  document.getElementById('secBorderStyle').innerHTML = borderStyleOptions(st.border_style);
   document.getElementById('sectionModal').classList.add('open');
 }
 document.getElementById('secCancelBtn').onclick = () => document.getElementById('sectionModal').classList.remove('open');
@@ -394,7 +566,13 @@ document.getElementById('secApplyBtn').onclick = () => {
     bold: document.getElementById('secBold').checked,
     italic: document.getElementById('secItalic').checked,
     underline: document.getElementById('secUnderline').checked,
+    font_family: document.getElementById('secFontFamily').value || null,
+    font_weight: document.getElementById('secFontWeight').value || null,
     font_size: parseInt(document.getElementById('secFontSize').value) || null,
+    line_height: parseFloat(document.getElementById('secLineHeight').value) || null,
+    border_width: document.getElementById('secBorderWidth').value !== '' ? parseInt(document.getElementById('secBorderWidth').value) : null,
+    border_color: document.getElementById('secBorderColor').value || null,
+    border_style: document.getElementById('secBorderStyle').value || null,
   };
   s.row_height = parseInt(document.getElementById('secRowHeight').value) || null;
   document.getElementById('sectionModal').classList.remove('open');
@@ -408,38 +586,81 @@ document.getElementById('secDeleteBtn').onclick = () => {
 };
 
 // ---------- column modal ----------
+// Header and data-cell styles are edited in the same modal via a tab
+// switch — pendingColStyles holds both while the modal is open so
+// switching tabs doesn't lose unsaved edits to the other one.
+let colStyleTarget = 'header';
+let pendingColStyles = {header: {}, cell: {}};
+
+function writeColStyleForm(st) {
+  st = st || {};
+  document.getElementById('colBg').value = st.bg || '#ffffff';
+  document.getElementById('colColor').value = st.color || '#000000';
+  document.getElementById('colFontFamily').innerHTML = fontFamilyOptions(st.font_family);
+  document.getElementById('colFontWeight').innerHTML = fontWeightOptions(st.font_weight);
+  document.getElementById('colBold').checked = !!st.bold;
+  document.getElementById('colItalic').checked = !!st.italic;
+  document.getElementById('colUnderline').checked = !!st.underline;
+  document.getElementById('colAlign').value = st.align || 'center';
+  document.getElementById('colFontSize').value = st.font_size || '';
+  document.getElementById('colPadding').value = st.padding != null ? st.padding : '';
+  document.getElementById('colLineHeight').value = st.line_height || '';
+  document.getElementById('colBorderWidth').value = st.border_width != null ? st.border_width : '';
+  document.getElementById('colBorderColor').value = st.border_color || '#000000';
+  document.getElementById('colBorderStyle').innerHTML = borderStyleOptions(st.border_style);
+}
+function readColStyleForm() {
+  return {
+    bg: document.getElementById('colBg').value,
+    color: document.getElementById('colColor').value,
+    font_family: document.getElementById('colFontFamily').value || null,
+    font_weight: document.getElementById('colFontWeight').value || null,
+    bold: document.getElementById('colBold').checked,
+    italic: document.getElementById('colItalic').checked,
+    underline: document.getElementById('colUnderline').checked,
+    align: document.getElementById('colAlign').value,
+    font_size: parseInt(document.getElementById('colFontSize').value) || null,
+    padding: document.getElementById('colPadding').value !== '' ? parseInt(document.getElementById('colPadding').value) : null,
+    line_height: parseFloat(document.getElementById('colLineHeight').value) || null,
+    border_width: document.getElementById('colBorderWidth').value !== '' ? parseInt(document.getElementById('colBorderWidth').value) : null,
+    border_color: document.getElementById('colBorderColor').value || null,
+    border_style: document.getElementById('colBorderStyle').value || null,
+  };
+}
+function setColStyleTab(target) {
+  pendingColStyles[colStyleTarget] = readColStyleForm();
+  colStyleTarget = target;
+  document.getElementById('colStyleTabHeader').classList.toggle('active', target === 'header');
+  document.getElementById('colStyleTabCell').classList.toggle('active', target === 'cell');
+  writeColStyleForm(pendingColStyles[target]);
+}
+document.getElementById('colStyleTabHeader').onclick = () => setColStyleTab('header');
+document.getElementById('colStyleTabCell').onclick = () => setColStyleTab('cell');
+
 function openColumnModal(sectionIdx, colIdx) {
   editingColRef = {sectionIdx, colIdx};
   const col = DRAFT.sections[sectionIdx].columns[colIdx];
   document.getElementById('colLabel').value = col.label || '';
   document.getElementById('colWidth').value = col.width_pct || 15;
   document.getElementById('colKind').value = col.kind || 'text';
-  const st = col.style || {};
-  document.getElementById('colBg').value = st.bg || '#ffffff';
-  document.getElementById('colColor').value = st.color || '#000000';
-  document.getElementById('colBold').checked = !!st.bold;
-  document.getElementById('colItalic').checked = !!st.italic;
-  document.getElementById('colUnderline').checked = !!st.underline;
-  document.getElementById('colAlign').value = st.align || 'center';
-  document.getElementById('colPadding').value = st.padding != null ? st.padding : '';
+  pendingColStyles = {header: colHeaderStyle(col), cell: colCellStyle(col)};
+  colStyleTarget = 'header';
+  document.getElementById('colStyleTabHeader').classList.add('active');
+  document.getElementById('colStyleTabCell').classList.remove('active');
+  writeColStyleForm(pendingColStyles.header);
   document.getElementById('colModal').classList.add('open');
 }
 document.getElementById('colCancelBtn').onclick = () => document.getElementById('colModal').classList.remove('open');
 document.getElementById('colApplyBtn').onclick = () => {
   const {sectionIdx, colIdx} = editingColRef;
   const col = DRAFT.sections[sectionIdx].columns[colIdx];
+  pendingColStyles[colStyleTarget] = readColStyleForm();
   col.label = document.getElementById('colLabel').value;
   col.width_pct = parseInt(document.getElementById('colWidth').value) || 15;
   col.kind = document.getElementById('colKind').value;
-  col.style = {
-    bg: document.getElementById('colBg').value,
-    color: document.getElementById('colColor').value,
-    bold: document.getElementById('colBold').checked,
-    italic: document.getElementById('colItalic').checked,
-    underline: document.getElementById('colUnderline').checked,
-    align: document.getElementById('colAlign').value,
-    padding: document.getElementById('colPadding').value !== '' ? parseInt(document.getElementById('colPadding').value) : null,
-  };
+  col.header_style = pendingColStyles.header;
+  col.cell_style = pendingColStyles.cell;
+  delete col.style; // superseded by header_style/cell_style, kept only as a read-fallback for un-migrated configs
   document.getElementById('colModal').classList.remove('open');
   render();
 };
@@ -484,7 +705,13 @@ function openFixedRowModal(sectionIdx, rowKind, rowIdx) {
   document.getElementById('fixedRowBold').checked = !!st.bold;
   document.getElementById('fixedRowItalic').checked = !!st.italic;
   document.getElementById('fixedRowUnderline').checked = !!st.underline;
+  document.getElementById('fixedRowFontFamily').innerHTML = fontFamilyOptions(st.font_family);
+  document.getElementById('fixedRowFontWeight').innerHTML = fontWeightOptions(st.font_weight);
   document.getElementById('fixedRowFontSize').value = st.font_size || '';
+  document.getElementById('fixedRowLineHeight').value = st.line_height || '';
+  document.getElementById('fixedRowBorderWidth').value = st.border_width != null ? st.border_width : '';
+  document.getElementById('fixedRowBorderColor').value = st.border_color || '#000000';
+  document.getElementById('fixedRowBorderStyle').innerHTML = borderStyleOptions(st.border_style);
   document.getElementById('fixedRowModal').classList.add('open');
 }
 document.getElementById('fixedRowCancelBtn').onclick = () => document.getElementById('fixedRowModal').classList.remove('open');
@@ -499,7 +726,13 @@ document.getElementById('fixedRowApplyBtn').onclick = () => {
     bold: document.getElementById('fixedRowBold').checked,
     italic: document.getElementById('fixedRowItalic').checked,
     underline: document.getElementById('fixedRowUnderline').checked,
+    font_family: document.getElementById('fixedRowFontFamily').value || null,
+    font_weight: document.getElementById('fixedRowFontWeight').value || null,
     font_size: parseInt(document.getElementById('fixedRowFontSize').value) || null,
+    line_height: parseFloat(document.getElementById('fixedRowLineHeight').value) || null,
+    border_width: document.getElementById('fixedRowBorderWidth').value !== '' ? parseInt(document.getElementById('fixedRowBorderWidth').value) : null,
+    border_color: document.getElementById('fixedRowBorderColor').value || null,
+    border_style: document.getElementById('fixedRowBorderStyle').value || null,
   };
   document.getElementById('fixedRowModal').classList.remove('open');
   render();
@@ -509,6 +742,65 @@ document.getElementById('fixedRowDeleteBtn').onclick = () => {
   const {sectionIdx, rowKind, rowIdx} = editingFixedRowRef;
   DRAFT.sections[sectionIdx][rowKind].splice(rowIdx, 1);
   document.getElementById('fixedRowModal').classList.remove('open');
+  render();
+};
+
+// ---------- Title / Quote modal ----------
+function openTitleQuoteModal() {
+  DRAFT.title_row = DRAFT.title_row || {label_template: 'FLAMING NEWS FOR {date}', style: {}};
+  DRAFT.quote_row = DRAFT.quote_row || {label_template: 'Quote of the Day : \u201c{quote}\u201d', style: {}};
+  const t = DRAFT.title_row, q = DRAFT.quote_row;
+  const ts = t.style || {}, qs = q.style || {};
+  document.getElementById('tqTitleTemplate').value = t.label_template || '';
+  document.getElementById('tqTitleBg').value = ts.bg || '#e7e6e6';
+  document.getElementById('tqTitleColor').value = ts.color || '#ff0000';
+  document.getElementById('tqTitleFontSize').value = ts.font_size || '';
+  document.getElementById('tqTitlePadding').value = ts.padding != null ? ts.padding : '';
+  document.getElementById('tqTitleBold').checked = !!ts.bold;
+  document.getElementById('tqTitleItalic').checked = !!ts.italic;
+  document.getElementById('tqTitleUnderline').checked = !!ts.underline;
+
+  document.getElementById('tqQuoteTemplate').value = q.label_template || '';
+  document.getElementById('tqQuoteBg').value = qs.bg || '#e7e6e6';
+  document.getElementById('tqQuoteColor').value = qs.color || '#ff0000';
+  document.getElementById('tqQuoteFontSize').value = qs.font_size || '';
+  document.getElementById('tqQuotePadding').value = qs.padding != null ? qs.padding : '';
+  document.getElementById('tqQuoteBold').checked = !!qs.bold;
+  document.getElementById('tqQuoteItalic').checked = !!qs.italic;
+  document.getElementById('tqQuoteUnderline').checked = !!qs.underline;
+
+  document.getElementById('titleQuoteModal').classList.add('open');
+}
+document.getElementById('titleQuoteBtn').onclick = openTitleQuoteModal;
+document.getElementById('tqCancelBtn').onclick = () => document.getElementById('titleQuoteModal').classList.remove('open');
+document.getElementById('tqApplyBtn').onclick = () => {
+  DRAFT.title_row = {
+    label_template: document.getElementById('tqTitleTemplate').value || 'FLAMING NEWS FOR {date}',
+    style: {
+      bg: document.getElementById('tqTitleBg').value,
+      color: document.getElementById('tqTitleColor').value,
+      font_size: parseInt(document.getElementById('tqTitleFontSize').value) || null,
+      padding: document.getElementById('tqTitlePadding').value !== '' ? parseInt(document.getElementById('tqTitlePadding').value) : null,
+      bold: document.getElementById('tqTitleBold').checked,
+      italic: document.getElementById('tqTitleItalic').checked,
+      underline: document.getElementById('tqTitleUnderline').checked,
+      align: 'center',
+    },
+  };
+  DRAFT.quote_row = {
+    label_template: document.getElementById('tqQuoteTemplate').value || 'Quote of the Day : \u201c{quote}\u201d',
+    style: {
+      bg: document.getElementById('tqQuoteBg').value,
+      color: document.getElementById('tqQuoteColor').value,
+      font_size: parseInt(document.getElementById('tqQuoteFontSize').value) || null,
+      padding: document.getElementById('tqQuotePadding').value !== '' ? parseInt(document.getElementById('tqQuotePadding').value) : null,
+      bold: document.getElementById('tqQuoteBold').checked,
+      italic: document.getElementById('tqQuoteItalic').checked,
+      underline: document.getElementById('tqQuoteUnderline').checked,
+      align: 'center',
+    },
+  };
+  document.getElementById('titleQuoteModal').classList.remove('open');
   render();
 };
 
