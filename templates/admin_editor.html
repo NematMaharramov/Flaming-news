@@ -89,7 +89,8 @@
       <label><input type="checkbox" id="secItalic"> Italic</label>
       <label><input type="checkbox" id="secUnderline"> Underline</label>
     </div>
-    <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="secFontSize" min="8" max="30"></div>
+    <div class="field-row"><label>Şrift ölçüsü (px) — başlıq</label><input type="number" id="secFontSize" min="8" max="40"></div>
+    <div class="field-row"><label>Sətir hündürlüyü (px) — bu bölmənin bütün sətirləri</label><input type="number" id="secRowHeight" min="16" max="120" placeholder="avtomatik"></div>
     <div class="modal-actions">
       <button class="btn danger small" id="secDeleteBtn">🗑 Bölməni sil</button>
       <div>
@@ -147,6 +148,14 @@
       <label>Data path (məs. fairmont_goals.nps_goal)</label>
       <input type="text" id="fixedRowKey">
     </div>
+    <div class="field-row"><label>Arxa fon rəngi (label xanası)</label><input type="color" id="fixedRowBg"></div>
+    <div class="field-row"><label>Mətn rəngi</label><input type="color" id="fixedRowColor"></div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="fixedRowBold"> Bold</label>
+      <label><input type="checkbox" id="fixedRowItalic"> Italic</label>
+      <label><input type="checkbox" id="fixedRowUnderline"> Underline</label>
+    </div>
+    <div class="field-row"><label>Şrift ölçüsü (px)</label><input type="number" id="fixedRowFontSize" min="8" max="40"></div>
     <div class="modal-actions">
       <button class="btn danger small" id="fixedRowDeleteBtn">🗑 Sətri sil</button>
       <div>
@@ -261,6 +270,7 @@ function renderSheet(sheetNum, containerId) {
       table.appendChild(headTr);
 
       const bodyTr = document.createElement('tr');
+      if (section.row_height) bodyTr.style.height = section.row_height + 'px';
       (section.columns||[]).forEach(col => {
         const td = document.createElement('td');
         td.className = 'placeholder-cell';
@@ -287,14 +297,17 @@ function renderSheet(sheetNum, containerId) {
       const rowKind = section.metric_rows ? 'metric_rows' : 'fields';
       rows.forEach((row, ri) => {
         const rowTr = document.createElement('tr');
+        if (section.row_height) rowTr.style.height = section.row_height + 'px';
         const labelTd = document.createElement('td');
         labelTd.className = 'col-header';
         labelTd.textContent = row.label;
         labelTd.colSpan = 6;
+        labelTd.setAttribute('style', (labelTd.getAttribute('style')||'') + ';' + styleToCss(row.style));
         labelTd.addEventListener('click', () => openFixedRowModal(section._idx, rowKind, ri));
         const previewTd = document.createElement('td');
         previewTd.className = 'placeholder-cell'; previewTd.colSpan = 3;
         previewTd.textContent = rowKind === 'metric_rows' ? '(7 günlük dəyər sırası)' : 'Sample value';
+        previewTd.setAttribute('style', (previewTd.getAttribute('style')||'') + ';' + styleToCss(row.style));
         rowTr.appendChild(labelTd); rowTr.appendChild(previewTd);
         table.appendChild(rowTr);
       });
@@ -368,6 +381,7 @@ function openSectionModal(idx) {
   document.getElementById('secItalic').checked = !!st.italic;
   document.getElementById('secUnderline').checked = !!st.underline;
   document.getElementById('secFontSize').value = st.font_size || '';
+  document.getElementById('secRowHeight').value = s.row_height || '';
   document.getElementById('sectionModal').classList.add('open');
 }
 document.getElementById('secCancelBtn').onclick = () => document.getElementById('sectionModal').classList.remove('open');
@@ -382,6 +396,7 @@ document.getElementById('secApplyBtn').onclick = () => {
     underline: document.getElementById('secUnderline').checked,
     font_size: parseInt(document.getElementById('secFontSize').value) || null,
   };
+  s.row_height = parseInt(document.getElementById('secRowHeight').value) || null;
   document.getElementById('sectionModal').classList.remove('open');
   render();
 };
@@ -463,6 +478,13 @@ function openFixedRowModal(sectionIdx, rowKind, rowIdx) {
   document.getElementById('fixedRowLabel').value = row.label || '';
   document.getElementById('fixedRowKeyWrap').style.display = rowKind === 'fields' ? '' : 'none';
   if (rowKind === 'fields') document.getElementById('fixedRowKey').value = row.data_path || '';
+  const st = row.style || {};
+  document.getElementById('fixedRowBg').value = st.bg || '#E7E6E6';
+  document.getElementById('fixedRowColor').value = st.color || '#000000';
+  document.getElementById('fixedRowBold').checked = !!st.bold;
+  document.getElementById('fixedRowItalic').checked = !!st.italic;
+  document.getElementById('fixedRowUnderline').checked = !!st.underline;
+  document.getElementById('fixedRowFontSize').value = st.font_size || '';
   document.getElementById('fixedRowModal').classList.add('open');
 }
 document.getElementById('fixedRowCancelBtn').onclick = () => document.getElementById('fixedRowModal').classList.remove('open');
@@ -471,6 +493,14 @@ document.getElementById('fixedRowApplyBtn').onclick = () => {
   const row = DRAFT.sections[sectionIdx][rowKind][rowIdx];
   row.label = document.getElementById('fixedRowLabel').value;
   if (rowKind === 'fields') row.data_path = document.getElementById('fixedRowKey').value;
+  row.style = {
+    bg: document.getElementById('fixedRowBg').value,
+    color: document.getElementById('fixedRowColor').value,
+    bold: document.getElementById('fixedRowBold').checked,
+    italic: document.getElementById('fixedRowItalic').checked,
+    underline: document.getElementById('fixedRowUnderline').checked,
+    font_size: parseInt(document.getElementById('fixedRowFontSize').value) || null,
+  };
   document.getElementById('fixedRowModal').classList.remove('open');
   render();
 };

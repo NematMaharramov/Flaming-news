@@ -353,11 +353,20 @@ function renderForecast() {
   (section.metric_rows||[]).forEach(metric => {
     fc[metric.key] = fc[metric.key] || ['','','','','','',''];
     const tr = document.createElement('tr');
+    if (section.row_height) tr.style.height = section.row_height + 'px';
     const l = document.createElement('td'); l.textContent = metric.label; l.style.background = 'var(--green)'; l.style.fontWeight = 'bold'; l.colSpan = 2;
     applyStyle(l, metric.style);
     tr.appendChild(l);
     for (let i=0;i<7;i++) {
       const inputEl = cellInput(`forecast.${metric.key}.${i}`, fc[metric.key][i]);
+      if (metric.style) {
+        const s = metric.style;
+        if (s.color) inputEl.style.color = s.color;
+        if (s.bold) inputEl.style.fontWeight = 'bold';
+        if (s.italic) inputEl.style.fontStyle = 'italic';
+        if (s.underline) inputEl.style.textDecoration = 'underline';
+        if (s.font_size) inputEl.style.fontSize = s.font_size + 'px';
+      }
       if (metric.key === 'occupancy_pct') {
         applyOccupancyColor(inputEl);
         inputEl.addEventListener('input', () => applyOccupancyColor(inputEl));
@@ -370,6 +379,7 @@ function renderForecast() {
   container.appendChild(table);
 }
 
+// ---------- Occupancy % banded colour scale (Part E) — mirrors report_config.occupancy_color() ----------
 // ---------- Occupancy % gradient (Part E) — mirrors report_config.occupancy_color() ----------
 function hexToRgb(hex) {
   hex = (hex || '#000000').replace('#','');
@@ -413,6 +423,7 @@ function renderFieldsFixed(sectionId, containerId, colsPerRow) {
   const fields = section.fields || [];
   for (let i = 0; i < fields.length; i += colsPerRow) {
     const tr = document.createElement('tr');
+    if (section.row_height) tr.style.height = section.row_height + 'px';
     for (let j = i; j < i + colsPerRow; j++) {
       if (j >= fields.length) { tr.appendChild(document.createElement('td')); tr.appendChild(document.createElement('td')); continue; }
       const f = fields[j];
@@ -421,7 +432,16 @@ function renderFieldsFixed(sectionId, containerId, colsPerRow) {
       applyStyle(labelTd, f.style);
       const valueTd = document.createElement('td');
       valueTd.style.background = 'var(--grey)';
-      valueTd.appendChild(cellInput(f.data_path, getPath(STATE, f.data_path)));
+      const valueInput = cellInput(f.data_path, getPath(STATE, f.data_path));
+      if (f.style) {
+        const s = f.style;
+        if (s.color) valueInput.style.color = s.color;
+        if (s.bold) valueInput.style.fontWeight = 'bold';
+        if (s.italic) valueInput.style.fontStyle = 'italic';
+        if (s.underline) valueInput.style.textDecoration = 'underline';
+        if (s.font_size) valueInput.style.fontSize = s.font_size + 'px';
+      }
+      valueTd.appendChild(valueInput);
       tr.appendChild(labelTd); tr.appendChild(valueTd);
     }
     table.appendChild(tr);
@@ -451,15 +471,31 @@ function applyStyle(el, style) {
 
 function cellForColumn(col, listKey, idx, row) {
   const path = `${listKey}.${idx}.${col.key}`;
+  let el;
   switch (col.kind) {
-    case 'guest_with_photo': return guestCell(listKey, idx, row[col.key], row.photo);
-    case 'vip_code': return codeSelect(path, row[col.key]);
-    case 'time': return cellInput(path, row[col.key], {kind:'time'});
-    case 'date': return cellInput(path, row[col.key], {kind:'date'});
-    case 'remarks': return cellInput(path, row[col.key], {needsReview: !!row.remarks_needs_review});
-    case 'text_left': return cellInput(path, row[col.key], {cls:'left-align'});
-    default: return cellInput(path, row[col.key]);
+    case 'guest_with_photo': el = guestCell(listKey, idx, row[col.key], row.photo); break;
+    case 'vip_code': el = codeSelect(path, row[col.key]); break;
+    case 'time': el = cellInput(path, row[col.key], {kind:'time'}); break;
+    case 'date': el = cellInput(path, row[col.key], {kind:'date'}); break;
+    case 'remarks': el = cellInput(path, row[col.key], {needsReview: !!row.remarks_needs_review}); break;
+    case 'text_left': el = cellInput(path, row[col.key], {cls:'left-align'}); break;
+    default: el = cellInput(path, row[col.key]);
   }
+  // Font/alignment styling applies to the actual input too (not just the
+  // header) so "make this column's text bigger" affects what's actually
+  // typed, not just the label above it. Background is intentionally left
+  // off inputs (it would paint every data row solid, which reads as noise)
+  // — it still applies to the header cell in renderTableSection.
+  if (col.style && el && el.style) {
+    const s = col.style;
+    if (s.color) el.style.color = s.color;
+    if (s.bold) el.style.fontWeight = 'bold';
+    if (s.italic) el.style.fontStyle = 'italic';
+    if (s.underline) el.style.textDecoration = 'underline';
+    if (s.font_size) el.style.fontSize = s.font_size + 'px';
+    if (s.align) el.style.textAlign = s.align;
+  }
+  return el;
 }
 
 function blankRowFor(section) {
@@ -482,6 +518,7 @@ function renderTableSection(section, container) {
 
   const headTr = document.createElement('tr');
   headTr.className = 'thdr';
+  if (section.row_height) headTr.style.height = section.row_height + 'px';
   section.columns.forEach(col => {
     const th = document.createElement('td');
     th.textContent = col.label;
@@ -518,6 +555,7 @@ function renderSectionBody(section, tbody) {
   tbody.innerHTML = '';
   (STATE[section.data_key]||[]).forEach((row,i) => {
     const tr = document.createElement('tr');
+    if (section.row_height) tr.style.height = section.row_height + 'px';
     section.columns.forEach(col => {
       tr.appendChild(td(cellForColumn(col, section.data_key, i, row), {colspan: col.colspan > 1 ? col.colspan : undefined}));
     });
